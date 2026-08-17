@@ -15,4 +15,7 @@ abstract interface class SecureStorageService {
 
   /// Whether a value exists under [key].
   Future<bool> containsKey(String key);
+
+  /// Removes every value stored by the app.
+  Future<void> clearAll();
 }

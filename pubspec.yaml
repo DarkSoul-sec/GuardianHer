@@ -31,6 +31,8 @@ dependencies:
   url_launcher: ^6.3.2
   # Device biometric + PIN authentication for local app unlock.
   local_auth: ^3.0.2
+  pointycastle: ^4.0.0
+  package_info_plus: ^10.2.1
 
 dev_dependencies:
   flutter_test:

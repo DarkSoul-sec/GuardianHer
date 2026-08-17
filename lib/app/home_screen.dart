@@ -15,7 +15,7 @@ class HomeScreen extends StatelessWidget {
     const features = <({String title, IconData icon, String route})>[
       (title: 'SOS', icon: Icons.sos, route: AppRoutes.sos),
       (title: 'Location', icon: Icons.location_on_outlined, route: AppRoutes.location),
-      (title: 'Authentication', icon: Icons.lock_outline, route: AppRoutes.auth),
+      (title: 'Security', icon: Icons.lock_outline, route: AppRoutes.security),
       (title: 'Profile', icon: Icons.person_outline, route: AppRoutes.profile),
       (title: 'Permissions', icon: Icons.security_outlined, route: AppRoutes.permissions),
     ];

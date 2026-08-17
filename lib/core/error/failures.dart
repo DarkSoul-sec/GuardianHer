@@ -1,10 +1,11 @@
 /// Centralized error model shared across all features.
 ///
 /// Operations return [Result]s carrying a [Failure] instead of throwing
-/// platform exceptions across layer boundaries. Concrete subclasses describe
-/// the failure category so UI code can map them to user-facing messages
-/// without leaking platform-specific exceptions into widgets.
-sealed class Failure {
+/// platform exceptions across layer boundaries. Concrete subclasses (in other
+/// libraries) describe the failure category so UI code can map them to
+/// user-facing messages without leaking platform-specific exceptions into
+/// widgets.
+abstract class Failure {
   const Failure({required this.message, this.code});
 
   final String message;
