@@ -1,4 +1,4 @@
-package com.example.guardianher
+package com.guardianher.app
 
 import io.flutter.embedding.android.FlutterActivity
 
