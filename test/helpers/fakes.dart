@@ -39,6 +39,8 @@ class FakeSecureStorageService implements SecureStorageService {
 class FakePreferencesService implements PreferencesService {
   final Map<String, Object> _values = {};
 
+  Set<String> getKeys() => _values.keys.toSet();
+
   @override
   Future<String?> getString(String key) async => _values[key] as String?;
 

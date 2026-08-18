@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/application/app_lock_providers.dart';
 import '../../features/auth/domain/app_lock_status.dart';
 import '../../features/auth/presentation/lock_screen.dart';
+import '../../features/contacts/presentation/contact_form_screen.dart';
 import '../../features/contacts/presentation/contacts_screen.dart';
 import '../../features/emergency_history/presentation/emergency_history_screen.dart';
 import '../../features/location/presentation/location_screen.dart';
@@ -25,6 +26,10 @@ abstract final class AppRoutes {
   static const home = '/';
   static const profile = '/profile';
   static const contacts = '/contacts';
+  static const contactsAdd = '/contacts/add';
+
+  /// Path for editing the contact with [id].
+  static String contactsEdit(String id) => '/contacts/edit/$id';
   static const sos = '/sos';
   static const location = '/location';
   static const history = '/history';
@@ -74,6 +79,15 @@ final appRouterProvider = Provider<GoRouter>(
         GoRoute(
           path: AppRoutes.profile,
           builder: (context, state) => const ProfileScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.contactsAdd,
+          builder: (context, state) => const AddContactScreen(),
+        ),
+        GoRoute(
+          path: '/contacts/edit/:id',
+          builder: (context, state) =>
+              EditContactScreen(id: state.pathParameters['id']!),
         ),
         GoRoute(
           path: AppRoutes.sos,
