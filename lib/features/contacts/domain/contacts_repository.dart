@@ -16,23 +16,31 @@ abstract interface class ContactsRepository {
 
   /// Adds a new contact at the lowest priority.
   ///
+  /// [email] is optional (Phase 3G fallback channel); blank becomes `null`.
+  /// [isEmergencyContact] determines if this contact receives SOS alerts.
   /// Fails with [DuplicateContactFailure] for an existing normalized phone
   /// number and [MaxContactsReachedFailure] when the limit is reached.
   Future<Result<TrustedContact>> addContact({
     required String name,
     required String phoneNumber,
+    String? email,
+    bool isEmergencyContact = true,
   });
 
-  /// Updates the name/phone of an existing contact, preserving its [id] and
-  /// [createdAt] and refreshing [TrustedContact.updatedAt].
+  /// Updates the name/phone/email of an existing contact, preserving its [id]
+  /// and [createdAt] and refreshing [TrustedContact.updatedAt].
   ///
-  /// Fails with [ContactNotFoundFailure] when [id] is unknown and with
+  /// Because the form always submits the email field, passing an empty/null
+  /// [email] clears a previously stored address. Fails with
+  /// [ContactNotFoundFailure] when [id] is unknown and with
   /// [DuplicateContactFailure] when the new phone number belongs to another
   /// contact.
   Future<Result<TrustedContact>> updateContact({
     required String id,
     required String name,
     required String phoneNumber,
+    String? email,
+    bool isEmergencyContact = true,
   });
 
   /// Deletes the contact with [id] and re-normalizes remaining priorities.

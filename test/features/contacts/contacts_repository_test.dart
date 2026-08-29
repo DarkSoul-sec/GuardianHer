@@ -13,6 +13,14 @@ import 'contacts_test_fakes.dart';
 
 const _ts = '2026-08-18T10:00:00.000Z';
 
+/// Sentinel type so `contactMap` can omit the optional `email` key entirely
+/// (a plain `null` default would serialize an explicit `"email": null`).
+class _Absent {
+  const _Absent();
+}
+
+const Object _absent = _Absent();
+
 void main() {
   final now = DateTime.utc(2026, 8, 18, 10);
   late FakeSecureStorageService storage;
@@ -33,16 +41,21 @@ void main() {
     required int priority,
     String? createdAt,
     String? updatedAt,
+    Object? email = _absent,
   }) {
     return {
       'id': id,
       'name': name,
       'phoneNumber': phone,
+      if (email != _absent) 'email': email,
       'priority': priority,
       'createdAt': createdAt ?? _ts,
       'updatedAt': updatedAt ?? _ts,
     };
   }
+
+  /// Sentinel distinguishing "omit the key" from an explicit null.
+  /// Declared top-level; see [_Absent].
 
   String document(List<Map<String, Object?>> contacts, {int version = 1}) {
     return jsonEncode({'version': version, 'contacts': contacts});
@@ -161,6 +174,50 @@ void main() {
       expect((await repository.loadContacts()), isA<Err>());
     });
 
+    test('loads an optional email and tolerates documents without it',
+        () async {
+      // Old document shape: no email key at all.
+      await seed([
+        contactMap(id: 'a', name: 'A', phone: '9111111111', priority: 1),
+      ]);
+      final legacy = await repository.loadContacts();
+      expect((legacy as Ok).value.single.email, isNull);
+
+      // New shape with a stored address.
+      await seed([
+        contactMap(
+          id: 'a',
+          name: 'A',
+          phone: '9111111111',
+          priority: 1,
+          email: 'A@Example.com',
+        ),
+      ]);
+      final modern = await repository.loadContacts();
+      expect((modern as Ok).value.single.email, 'a@example.com');
+    });
+
+    test('rejects a present-but-invalid email', () async {
+      for (final bad in ['not-an-address', 'a@localhost', 42]) {
+        await seed([
+          contactMap(
+            id: 'a',
+            name: 'A',
+            phone: '9111111111',
+            priority: 1,
+            email: bad,
+          ),
+        ]);
+        final result = await repository.loadContacts();
+        expect(result, isA<Err>(), reason: 'email: $bad');
+        expect(
+          (result as Err).failure,
+          isA<CorruptedContactDataFailure>(),
+          reason: 'email: $bad',
+        );
+      }
+    });
+
     test('rejects duplicate ids', () async {
       await seed([
         contactMap(id: 'a', name: 'A', phone: '9111111111', priority: 1),
@@ -209,6 +266,46 @@ void main() {
       expect(stored, contains('911234567890'));
       expect(stored, contains('447911123456'));
       expect(stored, contains('Mom'));
+    });
+
+    test('persists an optional email and round-trips it', () async {
+      final added = await repository.addContact(
+        name: 'Mom',
+        phoneNumber: '+91 12345 67890',
+        email: ' Mom@Example.COM ',
+      );
+      expect((added as Ok).value.email, 'mom@example.com');
+
+      final loaded = await repository.loadContacts();
+      expect((loaded as Ok).value.single.email, 'mom@example.com');
+    });
+
+    test('updateContact stores, changes and clears the optional email',
+        () async {
+      final added = await repository.addContact(
+        name: 'Mom',
+        phoneNumber: '911234567890',
+        email: 'mom@example.com',
+      );
+      final id = (added as Ok).value.id;
+
+      // Change.
+      final changed = await repository.updateContact(
+        id: id,
+        name: 'Mom',
+        phoneNumber: '911234567890',
+        email: 'new@example.com',
+      );
+      expect((changed as Ok).value.email, 'new@example.com');
+
+      // Clear (the form always submits the field; empty clears it).
+      final cleared = await repository.updateContact(
+        id: id,
+        name: 'Mom',
+        phoneNumber: '911234567890',
+        email: '',
+      );
+      expect((cleared as Ok).value.email, isNull);
     });
 
     test('rejects duplicate normalized phone numbers', () async {

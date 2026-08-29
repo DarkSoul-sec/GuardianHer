@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:guardianher/app/app.dart';
 import 'package:guardianher/core/providers.dart';
-import 'package:guardianher/features/auth/application/app_lock_providers.dart';
 import 'package:guardianher/features/contacts/application/contacts_providers.dart';
 import 'package:guardianher/features/contacts/data/contacts_repository_impl.dart';
 import 'package:guardianher/features/contacts/presentation/contact_form_screen.dart';
@@ -20,14 +19,12 @@ Widget _harness(ProviderContainer container) {
   );
 }
 
-ProviderContainer _unlockedContainer({FakeSecureStorageService? storage}) {
+ProviderContainer _container({FakeSecureStorageService? storage}) {
   return createContainer(
     overrides: [
       secureStorageServiceProvider.overrideWithValue(
         storage ?? FakeSecureStorageService(),
       ),
-      appLockControllerProvider.overrideWith(UnlockedAppLockController.new),
-      pinHasherProvider.overrideWithValue(TestPinHasher()),
     ],
   );
 }
@@ -70,7 +67,7 @@ String _masked(String phone) {
 void main() {
   group('ContactsScreen', () {
     testWidgets('shows an empty state when no contacts exist', (tester) async {
-      final container = _unlockedContainer();
+      final container = _container();
       addTearDown(container.dispose);
       await _openContacts(tester, container);
 
@@ -86,7 +83,7 @@ void main() {
         ('Mom', '+91 12345 67890'),
         ('Dad', '+91 98765 43210'),
       ]);
-      final container = _unlockedContainer(storage: storage);
+      final container = _container(storage: storage);
       addTearDown(container.dispose);
       await _openContacts(tester, container);
 
@@ -104,7 +101,7 @@ void main() {
     testWidgets('masked numbers carry an accessible label', (tester) async {
       final storage = FakeSecureStorageService();
       await _seed(storage, [('Mom', '+91 12345 67890')]);
-      final container = _unlockedContainer(storage: storage);
+      final container = _container(storage: storage);
       addTearDown(container.dispose);
       await _openContacts(tester, container);
 
@@ -121,7 +118,7 @@ void main() {
 
     testWidgets('add flow saves a contact and returns to the list',
         (tester) async {
-      final container = _unlockedContainer();
+      final container = _container();
       addTearDown(container.dispose);
       await _openContacts(tester, container);
 
@@ -141,7 +138,7 @@ void main() {
     });
 
     testWidgets('add form shows validation errors', (tester) async {
-      final container = _unlockedContainer();
+      final container = _container();
       addTearDown(container.dispose);
       await _openContacts(tester, container);
 
@@ -167,14 +164,14 @@ void main() {
     testWidgets('add form rejects a duplicate phone number', (tester) async {
       final storage = FakeSecureStorageService();
       await _seed(storage, [('Mom', '+911234567890')]);
-      final container = _unlockedContainer(storage: storage);
+      final container = _container(storage: storage);
       addTearDown(container.dispose);
       await _openContacts(tester, container);
 
       await tester.tap(find.text('Add contact'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextFormField).at(0), 'Dad');
-      await tester.enterText(find.byType(TextFormField).at(1), '911234567890');
+      await tester.enterText(find.byType(TextFormField).at(1), '1234567890');
       await tester.tap(find.widgetWithText(FilledButton, 'Save contact'));
       await tester.pumpAndSettle();
 
@@ -194,7 +191,7 @@ void main() {
         ('D', '9444444444'),
         ('E', '9555555555'),
       ]);
-      final container = _unlockedContainer(storage: storage);
+      final container = _container(storage: storage);
       addTearDown(container.dispose);
       await _openContacts(tester, container);
 
@@ -212,7 +209,7 @@ void main() {
     testWidgets('edit flow prefills and updates the contact', (tester) async {
       final storage = FakeSecureStorageService();
       await _seed(storage, [('Mom', '+91 12345 67890')]);
-      final container = _unlockedContainer(storage: storage);
+      final container = _container(storage: storage);
       addTearDown(container.dispose);
       await _openContacts(tester, container);
 
@@ -220,7 +217,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(EditContactScreen), findsOneWidget);
 
-      // Prefilled with the stored values; the full number is only shown here.
+      // Prefilled with the stored values; the +91 prefix is applied for the
+      // national number only, so the field shows the bare digits.
       expect(
         find.descendant(
           of: find.byType(EditContactScreen),
@@ -231,7 +229,7 @@ void main() {
       expect(
         find.descendant(
           of: find.byType(EditContactScreen),
-          matching: find.text('911234567890'),
+          matching: find.text('1234567890'),
         ),
         findsOneWidget,
       );
@@ -252,7 +250,7 @@ void main() {
         ('Mom', '+911234567890'),
         ('Dad', '+919876543210'),
       ]);
-      final container = _unlockedContainer(storage: storage);
+      final container = _container(storage: storage);
       addTearDown(container.dispose);
       await _openContacts(tester, container);
 
@@ -280,8 +278,6 @@ void main() {
           contactsControllerProvider.overrideWith(
             LoadingContactsController.new,
           ),
-          appLockControllerProvider.overrideWith(UnlockedAppLockController.new),
-          pinHasherProvider.overrideWithValue(TestPinHasher()),
         ],
       );
       addTearDown(container.dispose);
@@ -294,8 +290,6 @@ void main() {
       final container = createContainer(
         overrides: [
           contactsControllerProvider.overrideWith(ErrorContactsController.new),
-          appLockControllerProvider.overrideWith(UnlockedAppLockController.new),
-          pinHasherProvider.overrideWithValue(TestPinHasher()),
         ],
       );
       addTearDown(container.dispose);

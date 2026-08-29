@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sos_widget_description">One-tap shortcut to open GuardianHer and start the SOS flow</string>
+    <string name="sos_tile_label">GuardianHer SOS</string>
+</resources>

@@ -179,8 +179,37 @@ class _ContactCard extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(contact.name, style: theme.textTheme.titleMedium),
+                      Row(
+                        children: [
+                          Text(contact.name, style: theme.textTheme.titleMedium),
+                          const SizedBox(width: 8),
+                          if (contact.isEmergencyContact)
+                            Chip(
+                              label: const Text('SOS'),
+                              backgroundColor: theme.colorScheme.errorContainer,
+                              labelStyle: TextStyle(
+                                color: theme.colorScheme.onErrorContainer,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                            ),
+                        ],
+                      ),
                       const SizedBox(height: 2),
+                      if (contact.email != null && contact.email!.isNotEmpty) ...[
+                        Semantics(
+                          label: 'Email: ${contact.email}',
+                          child: Text(
+                            contact.email!,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                      ],
                       Semantics(
                         label: 'Phone number ending $last4',
                         child: Text(

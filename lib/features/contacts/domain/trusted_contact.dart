@@ -19,7 +19,10 @@ abstract final class ContactId {
 ///
 /// [phoneNumber] is always stored in its canonical normalized form (digits
 /// only) and [priority] is a 1-based contiguous rank within the contact
-/// collection. Timestamps are UTC instants.
+/// collection. [email] is optional (normalized to null when blank) and is
+/// used only as a fallback delivery channel when no SMS app can handle a
+/// message (Phase 3G). [isEmergencyContact] determines if this contact
+/// receives SOS alerts. Timestamps are UTC instants.
 class TrustedContact {
   const TrustedContact({
     required this.id,
@@ -28,6 +31,8 @@ class TrustedContact {
     required this.priority,
     required this.createdAt,
     required this.updatedAt,
+    this.email,
+    this.isEmergencyContact = true,
   });
 
   /// Creates a new contact with a freshly generated [id] and creation/update
@@ -36,6 +41,8 @@ class TrustedContact {
     required String name,
     required String phoneNumber,
     required int priority,
+    String? email,
+    bool isEmergencyContact = true,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -45,6 +52,8 @@ class TrustedContact {
       name: name,
       phoneNumber: phoneNumber,
       priority: priority,
+      email: TrustedContact.normalizeEmail(email),
+      isEmergencyContact: isEmergencyContact,
       createdAt: created,
       updatedAt: updatedAt?.toUtc() ?? created,
     );
@@ -53,21 +62,33 @@ class TrustedContact {
   final String id;
   final String name;
   final String phoneNumber;
+  final String? email;
   final int priority;
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  /// Canonicalizes an email input: trimmed, lower-cased, blank → null.
+  static String? normalizeEmail(String? value) {
+    if (value == null) return null;
+    final trimmed = value.trim().toLowerCase();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
   TrustedContact copyWith({
     String? name,
     String? phoneNumber,
+    String? Function()? email,
     int? priority,
+    bool? isEmergencyContact,
     DateTime? updatedAt,
   }) {
     return TrustedContact(
       id: id,
       name: name ?? this.name,
       phoneNumber: phoneNumber ?? this.phoneNumber,
+      email: email != null ? email() : this.email,
       priority: priority ?? this.priority,
+      isEmergencyContact: isEmergencyContact ?? this.isEmergencyContact,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -79,11 +100,13 @@ class TrustedContact {
         other.id == id &&
         other.name == name &&
         other.phoneNumber == phoneNumber &&
+        other.email == email &&
         other.priority == priority &&
+        other.isEmergencyContact == isEmergencyContact &&
         other.createdAt == createdAt &&
         other.updatedAt == updatedAt;
   }
 
   @override
-  int get hashCode => Object.hash(id, name, phoneNumber, priority);
+  int get hashCode => Object.hash(id, name, phoneNumber, email, priority, isEmergencyContact);
 }

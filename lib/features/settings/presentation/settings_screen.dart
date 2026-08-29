@@ -3,11 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/router/app_router.dart';
+import '../../../core/platform/home_widget.dart';
 import '../../../core/providers.dart';
 import '../../../core/result/result.dart';
 import '../../../shared/widgets/settings_section_header.dart';
-import '../../auth/application/app_lock_providers.dart';
-import '../../auth/domain/app_lock_status.dart';
 import '../application/privacy_providers.dart';
 
 /// Main settings screen.
@@ -16,25 +15,41 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final lock = ref.watch(appLockControllerProvider);
     final appInfo = ref.watch(appInfoProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
-          const SettingsSectionHeader(title: 'Security'),
+          const SettingsSectionHeader(title: 'Safety'),
           ListTile(
-            leading: const Icon(Icons.lock_outline),
-            title: const Text('Security'),
-            subtitle: Text(
-              lock.status == AppLockStatus.needsSetup
-                  ? 'App lock is not set up'
-                  : 'App lock and biometric unlock',
+            leading: const Icon(Icons.notifications_active_outlined),
+            title: const Text('Safety check-in'),
+            subtitle: const Text(
+              'Schedule reminders to confirm you are safe and message your '
+              'trusted contacts',
             ),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push(AppRoutes.security),
+            onTap: () => context.push(AppRoutes.checkInSettings),
           ),
+          ListTile(
+            leading: const Icon(Icons.vibration),
+            title: const Text('Shake SOS'),
+            subtitle: const Text('Start SOS by shaking your phone, even when '
+                'the app is closed'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push(AppRoutes.shakeSosSettings),
+          ),
+          ListTile(
+            leading: const Icon(Icons.admin_panel_settings_outlined),
+            title: const Text('Device administrator'),
+            subtitle: const Text('Protect the app from force-stop and '
+                'uninstall'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push(AppRoutes.deviceAdminSettings),
+          ),
+          const SettingsSectionHeader(title: 'Home screen'),
+          const _SosWidgetTile(),
           const SettingsSectionHeader(title: 'Permissions'),
           ListTile(
             leading: const Icon(Icons.security_outlined),
@@ -72,7 +87,50 @@ class SettingsScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push(AppRoutes.privacyPolicy),
           ),
+          // Debug section — only visible in debug builds.
+          const _DebugSection(),
         ],
+      ),
+    );
+  }
+}
+
+/// Tile that asks the launcher to pin the home-screen SOS widget.
+class _SosWidgetTile extends ConsumerWidget {
+  const _SosWidgetTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListTile(
+      leading: const Icon(Icons.widgets_outlined),
+      title: const Text('SOS widget'),
+      subtitle: const Text('Add a home-screen shortcut that opens the SOS flow'),
+      trailing: const Icon(Icons.add_circle_outline),
+      onTap: () => _pin(context),
+    );
+  }
+
+  Future<void> _pin(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final supported = await canPinSosWidget();
+    if (!supported) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Your launcher does not support adding widgets from here. You can '
+            'add it from your home screen.',
+          ),
+        ),
+      );
+      return;
+    }
+    await pinSosWidget();
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'If your launcher showed a widget preview, confirm it there. '
+          'Otherwise add the widget from your home screen.',
+        ),
       ),
     );
   }
@@ -92,7 +150,7 @@ class _DeleteDataTile extends ConsumerWidget {
         'Delete all local data',
         style: TextStyle(color: Theme.of(context).colorScheme.error),
       ),
-      subtitle: const Text('Removes your PIN, settings and stored information'),
+      subtitle: const Text('Removes your trusted contacts, history and settings'),
       onTap: isDeleting ? null : () => _confirmDelete(context, ref),
     );
   }
@@ -104,8 +162,8 @@ class _DeleteDataTile extends ConsumerWidget {
       builder: (context) => AlertDialog(
         title: const Text('Delete all local data?'),
         content: const Text(
-          'This permanently removes your app lock PIN, security settings and '
-          'all stored information on this device. This cannot be undone.',
+          'This permanently removes your trusted contacts, emergency history '
+          'and settings stored on this device. This cannot be undone.',
         ),
         actions: [
           TextButton(
@@ -127,5 +185,32 @@ class _DeleteDataTile extends ConsumerWidget {
         const SnackBar(content: Text('Local data could not be deleted.')),
       );
     }
+  }
+}
+
+/// Debug-only section for testing SMS and location on device.
+/// Only visible in debug builds.
+class _DebugSection extends ConsumerWidget {
+  const _DebugSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Only show in debug mode.
+    if (!const bool.fromEnvironment('dart.vm.product')) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SettingsSectionHeader(title: 'Debug'),
+          ListTile(
+            leading: const Icon(Icons.bug_report_outlined, color: Colors.orange),
+            title: const Text('SMS Debug Test'),
+            subtitle: const Text('Send a test SMS via SmsManager directly'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).pushNamed('/sms-debug'),
+          ),
+        ],
+      );
+    }
+    return const SizedBox.shrink();
   }
 }

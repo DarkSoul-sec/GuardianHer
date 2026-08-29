@@ -4,8 +4,13 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:guardianher/core/permissions/permission_service.dart';
 import 'package:guardianher/core/platform/app_info_service.dart';
-import 'package:guardianher/core/platform/biometric_service.dart';
+import 'package:guardianher/core/platform/call_service.dart';
+import 'package:guardianher/core/platform/location_service.dart';
+import 'package:guardianher/core/platform/map_service.dart';
+import 'package:guardianher/core/platform/notification_service.dart';
 import 'package:guardianher/core/platform/preferences_service.dart';
+import 'package:guardianher/core/platform/sms_service.dart';
+import 'package:guardianher/core/platform/vibration_service.dart';
 import 'package:guardianher/core/providers.dart';
 import 'package:guardianher/core/security/data_cleanup_service.dart';
 import 'package:guardianher/core/security/secure_storage_service.dart';
@@ -38,24 +43,30 @@ void main() {
           isA<PermissionService>());
       expect(container.read(preferencesServiceProvider),
           isA<PreferencesService>());
-      expect(container.read(biometricServiceProvider), isA<BiometricService>());
       expect(container.read(appInfoServiceProvider), isA<AppInfoService>());
       expect(container.read(dataCleanupServiceProvider),
           isA<DataCleanupService>());
     });
 
-    test('unused Phase 2 services still throw until implemented', () {
+    test('Phase 3B emergency services resolve to implementations', () {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      expect(() => container.read(locationServiceProvider),
-          throwsUnimplementedError);
-      expect(
-          () => container.read(callServiceProvider), throwsUnimplementedError);
-      expect(() => container.read(smsServiceProvider), throwsUnimplementedError);
-      expect(() => container.read(mapServiceProvider), throwsUnimplementedError);
-      expect(() => container.read(notificationServiceProvider),
-          throwsUnimplementedError);
+      expect(container.read(callServiceProvider), isA<CallService>());
+      expect(container.read(smsServiceProvider), isA<SmsService>());
+      expect(container.read(notificationServiceProvider),
+          isA<NotificationService>());
+      expect(container.read(vibrationServiceProvider),
+          isA<VibrationService>());
+    });
+
+    test('Phase 3C location services resolve to implementations', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      expect(container.read(locationServiceProvider),
+          isA<LocationService>());
+      expect(container.read(mapServiceProvider), isA<MapService>());
     });
   });
 }

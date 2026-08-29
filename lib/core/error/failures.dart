@@ -38,3 +38,75 @@ final class PermissionDeniedFailure extends Failure {
   const PermissionDeniedFailure([String message = 'Permission was denied.'])
       : super(message: message, code: 'permission_denied');
 }
+
+/// No phone app on the device can handle the dialer intent.
+final class NoDialerAvailableFailure extends Failure {
+  const NoDialerAvailableFailure([
+    String message = 'Unable to open the dialer. No phone app was found.',
+  ]) : super(message: message, code: 'no_dialer');
+}
+
+/// No messaging app on the device can handle the SMS intent.
+final class NoSmsAppAvailableFailure extends Failure {
+  const NoSmsAppAvailableFailure([
+    String message = 'Unable to open messaging. No SMS app was found.',
+  ]) : super(message: message, code: 'no_sms_app');
+}
+
+/// WhatsApp could not be opened for a chat (app missing, unresolvable
+/// deep link, platform error). This says nothing about whether the recipient
+/// is registered on WhatsApp — that can never be known from this side.
+final class NoWhatsAppAppAvailableFailure extends Failure {
+  const NoWhatsAppAppAvailableFailure([
+    String message = 'Unable to open WhatsApp. The app may not be installed.',
+  ]) : super(message: message, code: 'no_whatsapp_app');
+}
+
+/// A phone number cannot be turned into a valid WhatsApp chat target.
+final class InvalidWhatsAppNumberFailure extends Failure {
+  const InvalidWhatsAppNumberFailure([
+    String message = "This contact's number cannot be used with WhatsApp.",
+  ]) : super(message: message, code: 'invalid_whatsapp_number');
+}
+
+/// No email application on the device can handle the mailto intent.
+final class NoEmailAppAvailableFailure extends Failure {
+  const NoEmailAppAvailableFailure([
+    String message = 'Unable to open email. No email app was found.',
+  ]) : super(message: message, code: 'no_email_app');
+}
+
+/// The system share sheet could not be opened.
+final class ShareUnavailableFailure extends Failure {
+  const ShareUnavailableFailure([
+    String message = 'Unable to open sharing options.',
+  ]) : super(message: message, code: 'share_unavailable');
+}
+
+/// No map application or browser could open the location.
+final class UnableToOpenMapsFailure extends Failure {
+  const UnableToOpenMapsFailure([
+    String message = 'Unable to open maps.',
+  ]) : super(message: message, code: 'unable_to_open_maps');
+}
+
+/// The user denied (or never granted) notification permission.
+final class NotificationPermissionDeniedFailure extends Failure {
+  const NotificationPermissionDeniedFailure([
+    String message = 'Notifications unavailable.',
+  ]) : super(message: message, code: 'notifications_unavailable');
+}
+
+/// The device has no vibrator or the vibration call failed.
+final class VibrationUnavailableFailure extends Failure {
+  const VibrationUnavailableFailure([
+    String message = 'Vibration is not available on this device.',
+  ]) : super(message: message, code: 'vibration_unavailable');
+}
+
+/// An intent-based platform operation (dialer/SMS/notification) failed.
+final class PlatformActionFailure extends Failure {
+  const PlatformActionFailure([
+    String message = 'Unable to open this action right now.',
+  ]) : super(message: message, code: 'platform_action');
+}

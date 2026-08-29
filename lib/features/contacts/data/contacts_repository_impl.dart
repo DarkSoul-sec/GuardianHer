@@ -16,6 +16,10 @@ abstract final class ContactsStorageKeys {
 }
 
 /// Serialization version of the stored contact document.
+///
+/// Stays at 1 after Phase 3G: contacts gained an OPTIONAL `email` field, and
+/// old documents without it load unchanged (`email == null`), so no migration
+/// is required.
 const int _contactsDocumentVersion = 1;
 
 /// Stores trusted contacts as a versioned document in Keystore-backed secure
@@ -31,6 +35,7 @@ const int _contactsDocumentVersion = 1;
 ///       "id": "...",
 ///       "name": "...",
 ///       "phoneNumber": "...",
+///       "email": "someone@example.com" | absent/null,
 ///       "priority": 1,
 ///       "createdAt": "2026-08-18T10:00:00.000Z",
 ///       "updatedAt": "2026-08-18T10:00:00.000Z"
@@ -42,7 +47,9 @@ const int _contactsDocumentVersion = 1;
 /// Stored data is treated as untrusted: malformed JSON, an unsupported
 /// version, missing or invalid fields, duplicate ids/phones or non-contiguous
 /// priorities are all reported as [CorruptedContactDataFailure] instead of
-/// crashing or silently returning an empty list.
+/// crashing or silently returning an empty list. A present-but-invalid email
+/// is likewise corrupted data; an absent one is simply a contact without a
+/// fallback address.
 class SecureStorageContactsRepository implements ContactsRepository {
   const SecureStorageContactsRepository({
     required this.storage,
@@ -69,9 +76,15 @@ class SecureStorageContactsRepository implements ContactsRepository {
   Future<Result<TrustedContact>> addContact({
     required String name,
     required String phoneNumber,
+    String? email,
+    bool isEmergencyContact = true,
   }) async {
     final ContactDraft draft;
-    switch (validator.validateDraft(name: name, phoneNumber: phoneNumber)) {
+    switch (validator.validateDraft(
+      name: name,
+      phoneNumber: phoneNumber,
+      email: email,
+    )) {
       case Ok(:final value):
         draft = value;
       case Err(:final failure):
@@ -92,6 +105,8 @@ class SecureStorageContactsRepository implements ContactsRepository {
     final contact = TrustedContact.create(
       name: draft.name,
       phoneNumber: draft.phoneNumber,
+      email: draft.email,
+      isEmergencyContact: isEmergencyContact,
       priority: contacts.length + 1,
       createdAt: now(),
       updatedAt: now(),
@@ -108,9 +123,15 @@ class SecureStorageContactsRepository implements ContactsRepository {
     required String id,
     required String name,
     required String phoneNumber,
+    String? email,
+    bool isEmergencyContact = true,
   }) async {
     final ContactDraft draft;
-    switch (validator.validateDraft(name: name, phoneNumber: phoneNumber)) {
+    switch (validator.validateDraft(
+      name: name,
+      phoneNumber: phoneNumber,
+      email: email,
+    )) {
       case Ok(:final value):
         draft = value;
       case Err(:final failure):
@@ -130,6 +151,10 @@ class SecureStorageContactsRepository implements ContactsRepository {
     final updated = contacts[index].copyWith(
       name: draft.name,
       phoneNumber: draft.phoneNumber,
+      // The form always submits the field, so an absent draft email clears a
+      // previously stored one.
+      email: () => draft.email,
+      isEmergencyContact: isEmergencyContact,
       updatedAt: now(),
     );
     contacts[index] = updated;
@@ -240,7 +265,11 @@ class SecureStorageContactsRepository implements ContactsRepository {
               'id': contact.id,
               'name': contact.name,
               'phoneNumber': contact.phoneNumber,
+              // Optional since Phase 3G; written as null when absent so the
+              // document shape stays stable.
+              'email': contact.email,
               'priority': contact.priority,
+              'isEmergencyContact': contact.isEmergencyContact,
               'createdAt': contact.createdAt.toIso8601String(),
               'updatedAt': contact.updatedAt.toIso8601String(),
             },
@@ -271,7 +300,28 @@ class SecureStorageContactsRepository implements ContactsRepository {
         PhoneNumber.normalize(phone) != phone) {
       return null;
     }
+    // Optional field: absent or null means "no email"; anything present must
+    // be a valid normalized address (strict, like every other field).
+    final rawEmail = map['email'];
+    String? email;
+    if (rawEmail != null) {
+      if (rawEmail is! String) return null;
+      email = TrustedContact.normalizeEmail(rawEmail);
+      if (email != null &&
+          (email.length > TrustedContactValidator.maxEmailLength ||
+              !TrustedContactValidator.isValidEmail(email))) {
+        return null;
+      }
+    }
     if (priority is! int || priority < 1) return null;
+
+    // Optional: defaults to true for backward compatibility
+    final rawIsEmergency = map['isEmergencyContact'];
+    bool isEmergencyContact = true;
+    if (rawIsEmergency != null) {
+      if (rawIsEmergency is! bool) return null;
+      isEmergencyContact = rawIsEmergency;
+    }
 
     final created = _tryParseTimestamp(createdAt);
     if (created == null) return null;
@@ -282,7 +332,9 @@ class SecureStorageContactsRepository implements ContactsRepository {
       id: id,
       name: name,
       phoneNumber: phone,
+      email: email,
       priority: priority,
+      isEmergencyContact: isEmergencyContact,
       createdAt: created,
       updatedAt: updated,
     );

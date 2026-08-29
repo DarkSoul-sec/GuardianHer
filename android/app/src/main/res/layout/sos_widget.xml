@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen launcher widget (1x1). Tapping it opens GuardianHer and jumps
+     straight to the SOS screen. RemoteViews only: no Flutter logic runs in
+     the widget itself (no background location or services in V1). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/sos_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/sos_widget_background"
+    android:padding="4dp">
+
+    <TextView
+        android:id="@+id/sos_widget_label"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:text="SOS"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:maxLines="1" />
+</FrameLayout>

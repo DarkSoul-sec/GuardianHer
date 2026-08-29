@@ -74,5 +74,48 @@ void main() {
       expect(a, b);
       expect(a.copyWith(name: 'Other'), isNot(a));
     });
+
+    test('create normalizes the optional email (blank → null)', () {
+      final withEmail = TrustedContact.create(
+        name: 'Mom',
+        phoneNumber: '911234567890',
+        priority: 1,
+        email: '  MOM@Example.COM ',
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026),
+      );
+      final withoutEmail = TrustedContact.create(
+        name: 'Mom',
+        phoneNumber: '911234567890',
+        priority: 1,
+        email: '   ',
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026),
+      );
+      expect(withEmail.email, 'mom@example.com');
+      expect(withoutEmail.email, isNull);
+    });
+
+    test('copyWith can set and clear the optional email', () {
+      final original = TrustedContact.create(
+        name: 'Mom',
+        phoneNumber: '911234567890',
+        priority: 1,
+        email: 'mom@example.com',
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026),
+      );
+
+      final changed = original.copyWith(email: () => 'other@example.com');
+      expect(changed.email, 'other@example.com');
+
+      final cleared = original.copyWith(email: () => null);
+      expect(cleared.email, isNull);
+
+      // Omitting the parameter preserves the stored address (form semantics:
+      // only an explicit function clears it).
+      final untouched = original.copyWith(name: 'Mother');
+      expect(untouched.email, 'mom@example.com');
+    });
   });
 }

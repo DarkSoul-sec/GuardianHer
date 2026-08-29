@@ -28,9 +28,16 @@ class ContactsController extends Notifier<ContactsState> {
   Future<Result<TrustedContact>> addContact({
     required String name,
     required String phoneNumber,
+    String? email,
+    bool isEmergencyContact = true,
   }) {
     return _mutate(
-      () => _repository.addContact(name: name, phoneNumber: phoneNumber),
+      () => _repository.addContact(
+        name: name,
+        phoneNumber: phoneNumber,
+        email: email,
+        isEmergencyContact: isEmergencyContact,
+      ),
     );
   }
 
@@ -39,9 +46,17 @@ class ContactsController extends Notifier<ContactsState> {
     required String id,
     required String name,
     required String phoneNumber,
+    String? email,
+    bool isEmergencyContact = true,
   }) {
     return _mutate(
-      () => _repository.updateContact(id: id, name: name, phoneNumber: phoneNumber),
+      () => _repository.updateContact(
+        id: id,
+        name: name,
+        phoneNumber: phoneNumber,
+        email: email,
+        isEmergencyContact: isEmergencyContact,
+      ),
     );
   }
 

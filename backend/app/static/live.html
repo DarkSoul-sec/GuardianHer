@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<!--
+  GuardianHer live-location page (Phase 3J §12).
+
+  A static shell only: the page ships zero location data and zero third-party
+  code. The inline-free script polls the public API for THIS page's token and
+  renders an OpenStreetMap raster-tile slippy map written in vanilla JS.
+  Recipients need nothing but an ordinary browser; there is no login, no
+  account, no analytics and no tracking of any kind.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>GuardianHer Live Location</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="/static/live.js" defer></script>
+  </head>
+  <body>
+    <main class="card">
+      <header class="card-header">
+        <h1>GuardianHer Live Location</h1>
+        <span id="live-badge" class="badge hidden">● LIVE</span>
+      </header>
+
+      <p id="status-line" class="status hidden"></p>
+
+      <div id="stale-banner" class="banner banner-warn hidden">
+        Location hasn't updated recently.
+      </div>
+
+      <div id="map" class="map hidden" aria-label="Live location map">
+        <div id="tiles" class="tiles"></div>
+        <div id="accuracy-circle" class="accuracy-circle hidden"></div>
+        <div id="marker" class="marker hidden"></div>
+        <div class="map-controls">
+          <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+          <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
+        </div>
+      </div>
+
+      <div id="ended-overlay" class="overlay hidden">
+        Live location session has ended.
+      </div>
+
+      <div id="revoked-overlay" class="overlay hidden">
+        Location sharing has been stopped.
+      </div>
+
+      <footer class="attribution">
+        Map data © OpenStreetMap contributors
+      </footer>
+    </main>
+  </body>
+</html>

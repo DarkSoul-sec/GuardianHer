@@ -3,17 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:guardianher/app/app.dart';
-import 'package:guardianher/app/router/app_router.dart';
 import 'package:guardianher/core/error/failures.dart';
 import 'package:guardianher/core/providers.dart';
 import 'package:guardianher/core/result/result.dart';
-import 'package:guardianher/features/auth/application/app_lock_providers.dart';
-import 'package:guardianher/features/auth/data/secure_storage_app_lock_repository.dart';
-import 'package:guardianher/features/auth/presentation/lock_screen.dart';
 import 'package:guardianher/features/contacts/application/contacts_providers.dart';
 import 'package:guardianher/features/contacts/data/contacts_repository_impl.dart';
 import 'package:guardianher/features/contacts/domain/contact_failures.dart';
-import 'package:guardianher/features/contacts/presentation/contacts_screen.dart';
+import 'package:guardianher/features/contacts/domain/trusted_contact.dart';
 
 import '../../helpers/fakes.dart';
 
@@ -24,72 +20,26 @@ Widget _harness(ProviderContainer container) {
   );
 }
 
-/// Container whose app lock is locked (a PIN is stored but not unlocked).
-Future<ProviderContainer> _lockedContainer() async {
-  final storage = FakeSecureStorageService();
-  final stored = await TestPinHasher().hashPin('123456');
-  await storage.write(AppLockStorageKeys.pin, stored.encode());
-  return ProviderContainer(
-    overrides: [
-      ...defaultOverrides(
-        overrides: [
-          secureStorageServiceProvider.overrideWithValue(storage),
-        ],
-      ),
-      pinHasherProvider.overrideWithValue(TestPinHasher()),
-    ],
-  );
-}
-
 void main() {
   group('contacts security', () {
-    testWidgets(
-        'contacts routes redirect to the lock screen while the app is locked',
+    testWidgets('contacts are reachable immediately without authentication',
         (tester) async {
-      final container = await _lockedContainer();
+      final container = createContainer(
+        overrides: [
+          secureStorageServiceProvider.overrideWithValue(
+            FakeSecureStorageService(),
+          ),
+        ],
+      );
       addTearDown(container.dispose);
-      final router = container.read(appRouterProvider);
-
-      await tester.pumpWidget(_harness(container));
-      await tester.pumpAndSettle();
-      expect(find.byType(LockScreen), findsOneWidget);
-
-      for (final route in [
-        AppRoutes.contacts,
-        AppRoutes.contactsAdd,
-        AppRoutes.contactsEdit('any'),
-      ]) {
-        router.go(route);
-        await tester.pumpAndSettle();
-        expect(
-          find.byType(LockScreen),
-          findsOneWidget,
-          reason: '$route must redirect to the lock screen while locked',
-        );
-        expect(
-          find.byType(ContactsScreen),
-          findsNothing,
-          reason: '$route must not reach contacts while locked',
-        );
-      }
-    });
-
-    testWidgets('contacts are reachable after unlocking', (tester) async {
-      final container = await _lockedContainer();
-      addTearDown(container.dispose);
-      final router = container.read(appRouterProvider);
 
       await tester.pumpWidget(_harness(container));
       await tester.pumpAndSettle();
 
-      await tester.enterText(find.byType(TextField).at(0), '123456');
-      await tester.tap(find.widgetWithText(FilledButton, 'Unlock'));
+      await tester.tap(find.text('Contacts'));
       await tester.pumpAndSettle();
 
-      router.go(AppRoutes.contacts);
-      await tester.pumpAndSettle();
-
-      expect(find.byType(ContactsScreen), findsOneWidget);
+      expect(find.text('Trusted Contacts'), findsOneWidget);
     });
 
     test('failure messages never leak phone numbers', () {
@@ -138,6 +88,22 @@ void main() {
       );
       // SharedPreferences must never hold contact data.
       expect(preferences.getKeys(), isEmpty);
+    });
+
+    test('contacts survive secure-storage serialization round trip', () async {
+      final storage = FakeSecureStorageService();
+      final repository = SecureStorageContactsRepository(storage: storage);
+      final added = await repository.addContact(
+        name: 'Mom',
+        phoneNumber: '+911234567890',
+      );
+      final contact = (added as Ok<TrustedContact>).value;
+
+      final loaded = await repository.loadContacts();
+      final contacts = (loaded as Ok<List<TrustedContact>>).value;
+      expect(contacts.length, 1);
+      expect(contacts.single.id, contact.id);
+      expect(contacts.single.phoneNumber, contact.phoneNumber);
     });
   });
 }

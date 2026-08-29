@@ -1,28 +1,36 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../features/auth/application/app_lock_providers.dart';
-import '../../features/auth/domain/app_lock_status.dart';
-import '../../features/auth/presentation/lock_screen.dart';
+import '../../core/routing/route_guards.dart';
+import '../../features/check_in/presentation/check_in_screen.dart';
+import '../../features/check_in/presentation/check_in_settings_screen.dart';
 import '../../features/contacts/presentation/contact_form_screen.dart';
 import '../../features/contacts/presentation/contacts_screen.dart';
 import '../../features/emergency_history/presentation/emergency_history_screen.dart';
+import '../../features/live_location/presentation/live_location_screen.dart';
+import '../../features/journey/presentation/journey_screen.dart';
 import '../../features/location/presentation/location_screen.dart';
+import '../../features/onboarding/presentation/screens/permission_onboarding_screen.dart';
+import '../../features/onboarding/presentation/screens/splash_screen.dart';
 import '../../features/permissions/presentation/permissions_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
-import '../../features/settings/presentation/change_pin_screen.dart';
+import '../../features/safety_recorder/domain/safety_incident.dart';
+import '../../features/safety_recorder/presentation/safety_incident_detail_screen.dart';
+import '../../features/safety_recorder/presentation/safety_recorder_screen.dart';
 import '../../features/settings/presentation/privacy_policy_screen.dart';
-import '../../features/settings/presentation/security_settings_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
+import '../../features/settings/presentation/device_admin_settings_screen.dart';
+import '../../features/shake/presentation/shake_sos_settings_screen.dart';
 import '../../features/sos/presentation/sos_screen.dart';
 import '../../shared/widgets/app_shell.dart';
+import '../../debug/sms_debug_screen.dart';
 import '../home_screen.dart';
 
 /// Central route path registry.
 abstract final class AppRoutes {
   AppRoutes._();
 
-  static const lock = '/lock';
+  static const splash = '/splash';
   static const home = '/';
   static const profile = '/profile';
   static const contacts = '/contacts';
@@ -32,28 +40,56 @@ abstract final class AppRoutes {
   static String contactsEdit(String id) => '/contacts/edit/$id';
   static const sos = '/sos';
   static const location = '/location';
+  static const liveLocation = '/live-location';
+  static const journey = '/journey';
+  static const checkIn = '/check-in';
+  static const checkInSettings = '/check-in/settings';
   static const history = '/history';
   static const permissions = '/permissions';
   static const settings = '/settings';
-  static const security = '/security';
-  static const changePin = '/change-pin';
+  static const shakeSosSettings = '/settings/shake-sos';
+  static const deviceAdminSettings = '/settings/device-admin';
   static const privacyPolicy = '/privacy-policy';
+  static const safetyRecorder = '/safety-recorder';
+  static const safetyIncidentDetail = '/safety-recorder/detail';
+  static const onboardingPermissions = '/onboarding/permissions';
 }
+
+/// Router published before the [ProviderScope] container exists, so the app
+/// entrypoint can route notification taps (which carry no `ref`).
+GoRouter? publishedRouter;
 
 /// Application router.
 ///
-/// Main tab routes are wrapped in a [ShellRoute] providing the bottom
-/// navigation bar. The lock screen is the single gate in front of the whole
-/// app; a redirect based on the app-lock state keeps everything else
-/// unreachable while the app is locked.
+/// GuardianHer V1 has no app-level authentication gate: the app opens
+/// directly to Home and every route (including deep links) is reachable
+/// immediately after launch.
 final appRouterProvider = Provider<GoRouter>(
   (ref) {
     final router = GoRouter(
-      initialLocation: AppRoutes.lock,
+      initialLocation: AppRoutes.splash,
+      redirect: (context, state) async {
+        final isOnSplash = state.matchedLocation == AppRoutes.splash;
+        final isOnPermissionScreen = state.matchedLocation == AppRoutes.onboardingPermissions;
+
+        // Don't redirect if already on permission screen
+        if (isOnPermissionScreen) return null;
+
+        // Check on splash screen only
+        if (isOnSplash) {
+          final needsOnboarding = await RouteGuards.isOnboardingRequired();
+          if (needsOnboarding) {
+            return AppRoutes.onboardingPermissions;
+          } else {
+            return AppRoutes.home;
+          }
+        }
+        return null;
+      },
       routes: [
         GoRoute(
-          path: AppRoutes.lock,
-          builder: (context, state) => const LockScreen(),
+          path: AppRoutes.splash,
+          builder: (context, state) => const SplashScreen(),
         ),
         ShellRoute(
           builder: (context, state, child) => AppShell(child: child),
@@ -61,6 +97,10 @@ final appRouterProvider = Provider<GoRouter>(
             GoRoute(
               path: AppRoutes.home,
               builder: (context, state) => const HomeScreen(),
+            ),
+            GoRoute(
+              path: AppRoutes.journey,
+              builder: (context, state) => const JourneyScreen(),
             ),
             GoRoute(
               path: AppRoutes.contacts,
@@ -98,37 +138,56 @@ final appRouterProvider = Provider<GoRouter>(
           builder: (context, state) => const LocationScreen(),
         ),
         GoRoute(
+          path: AppRoutes.liveLocation,
+          builder: (context, state) => const LiveLocationScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.checkIn,
+          builder: (context, state) => const CheckInScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.checkInSettings,
+          builder: (context, state) => const CheckInSettingsScreen(),
+        ),
+        GoRoute(
           path: AppRoutes.permissions,
           builder: (context, state) => const PermissionsScreen(),
         ),
         GoRoute(
-          path: AppRoutes.security,
-          builder: (context, state) => const SecuritySettingsScreen(),
+          path: AppRoutes.shakeSosSettings,
+          builder: (context, state) => const ShakeSosSettingsScreen(),
         ),
         GoRoute(
-          path: AppRoutes.changePin,
-          builder: (context, state) => const ChangePinScreen(),
+          path: AppRoutes.deviceAdminSettings,
+          builder: (context, state) => const DeviceAdminSettingsScreen(),
         ),
         GoRoute(
           path: AppRoutes.privacyPolicy,
           builder: (context, state) => const PrivacyPolicyScreen(),
         ),
+        GoRoute(
+          path: AppRoutes.safetyRecorder,
+          builder: (context, state) => const SafetyRecorderScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.safetyIncidentDetail,
+          builder: (context, state) {
+            final incident = state.extra as SafetyIncident;
+            return SafetyIncidentDetailScreen(incident: incident);
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.onboardingPermissions,
+          builder: (context, state) => const PermissionOnboardingScreen(),
+        ),
+        // TEMPORARY: SMS debug test — removed after test passes.
+        GoRoute(
+          path: '/sms-debug',
+          builder: (context, state) => const SmsDebugScreen(),
+        ),
       ],
-      redirect: (context, state) {
-        final status = ref.read(appLockControllerProvider).status;
-        final isUnlocked = status == AppLockStatus.unlocked;
-        final onLock = state.uri.path == AppRoutes.lock;
-        if (!isUnlocked && !onLock) return AppRoutes.lock;
-        if (isUnlocked && onLock) return AppRoutes.home;
-        return null;
-      },
     );
-
-    // Re-evaluate the redirect whenever the lock state changes.
-    ref.listen(appLockControllerProvider, (previous, next) {
-      if (previous?.status != next.status) router.refresh();
-    });
-
+    publishedRouter = router;
     return router;
   },
 );

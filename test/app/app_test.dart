@@ -7,9 +7,10 @@ import 'package:guardianher/app/app.dart';
 import 'package:guardianher/app/home_screen.dart';
 import 'package:guardianher/app/router/app_router.dart';
 import 'package:guardianher/app/theme/app_theme.dart';
-import 'package:guardianher/features/auth/application/app_lock_providers.dart';
-import 'package:guardianher/features/auth/presentation/lock_screen.dart';
+import 'package:guardianher/features/contacts/presentation/contact_form_screen.dart';
+import 'package:guardianher/features/contacts/presentation/contacts_screen.dart';
 import 'package:guardianher/features/permissions/presentation/permissions_screen.dart';
+import 'package:guardianher/features/settings/presentation/settings_screen.dart';
 import 'package:guardianher/features/sos/presentation/sos_screen.dart';
 
 import '../helpers/fakes.dart';
@@ -21,57 +22,30 @@ Widget _harness(ProviderContainer container) {
   );
 }
 
-/// Container whose app lock is already unlocked, so the app boots into the
-/// shell without going through PIN setup.
-ProviderContainer _unlockedContainer() {
-  return createContainer(
-    overrides: [
-      appLockControllerProvider.overrideWith(UnlockedAppLockController.new),
-    ],
-  );
+ProviderContainer _container() {
+  return createContainer();
 }
 
 void main() {
   group('GuardianHerApp', () {
-    testWidgets('starts locked and requires PIN setup before the shell',
+    testWidgets('opens directly to Home without any lock screen',
         (tester) async {
-      final container = createContainer(
-        overrides: [pinHasherProvider.overrideWithValue(TestPinHasher())],
-      );
+      final container = _container();
       addTearDown(container.dispose);
 
       await tester.pumpWidget(_harness(container));
       await tester.pumpAndSettle();
 
-      expect(find.byType(LockScreen), findsOneWidget);
-      expect(find.text('Create PIN'), findsOneWidget);
-      expect(find.byType(HomeScreen), findsNothing);
-
-      await tester.enterText(find.byType(TextField).at(0), '123456');
-      await tester.enterText(find.byType(TextField).at(1), '123456');
-      await tester.tap(find.widgetWithText(FilledButton, 'Set PIN'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(LockScreen), findsNothing);
-      expect(find.byType(NavigationBar), findsOneWidget);
       expect(find.byType(HomeScreen), findsOneWidget);
-    });
-
-    testWidgets('boots into the app shell when already unlocked',
-        (tester) async {
-      final container = _unlockedContainer();
-      addTearDown(container.dispose);
-
-      await tester.pumpWidget(_harness(container));
-      await tester.pumpAndSettle();
-
       expect(find.byType(NavigationBar), findsOneWidget);
-      expect(find.byType(HomeScreen), findsOneWidget);
-      expect(find.text('GuardianHer'), findsWidgets);
+      // No authentication gate: no PIN, biometric or lock UI of any kind.
+      expect(find.textContaining('PIN'), findsNothing);
+      expect(find.textContaining('Unlock'), findsNothing);
+      expect(find.textContaining('Biometric'), findsNothing);
     });
 
     testWidgets('router navigates to a full-screen feature', (tester) async {
-      final container = _unlockedContainer();
+      final container = _container();
       addTearDown(container.dispose);
 
       await tester.pumpWidget(_harness(container));
@@ -85,7 +59,7 @@ void main() {
 
     testWidgets('router navigates programmatically via GoRouter',
         (tester) async {
-      final container = _unlockedContainer();
+      final container = _container();
       addTearDown(container.dispose);
       final router = container.read(appRouterProvider);
 
@@ -98,23 +72,53 @@ void main() {
       expect(find.byType(PermissionsScreen), findsOneWidget);
     });
 
-    testWidgets('security settings are reachable from the home screen',
+    testWidgets('deep links open without any authentication gate',
         (tester) async {
-      final container = _unlockedContainer();
+      final container = _container();
       addTearDown(container.dispose);
 
       await tester.pumpWidget(_harness(container));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Security'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Biometric unlock'), findsOneWidget);
-      expect(find.text('Change PIN'), findsOneWidget);
+      final destinations = <String, Type>{
+        AppRoutes.contacts: ContactsScreen,
+        AppRoutes.contactsAdd: AddContactScreen,
+        AppRoutes.contactsEdit('any'): EditContactScreen,
+        AppRoutes.sos: SosScreen,
+        AppRoutes.permissions: PermissionsScreen,
+        AppRoutes.settings: SettingsScreen,
+      };
+      for (final entry in destinations.entries) {
+        container.read(appRouterProvider).go(entry.key);
+        await tester.pumpAndSettle();
+        expect(
+          find.byType(entry.value),
+          findsOneWidget,
+          reason: '${entry.key} must render ${entry.value} without a lock gate',
+        );
+      }
     });
 
-    testWidgets('light theme is Material 3', (tester) async {
-      final container = _unlockedContainer();
+    testWidgets('the app shell persists across background/resume',
+        (tester) async {
+      final container = _container();
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(_harness(container));
+      await tester.pumpAndSettle();
+
+      final lifecycle = tester.binding;
+      lifecycle.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      lifecycle.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+
+      // No lock screen appears after backgrounding/resuming.
+      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(find.byType(NavigationBar), findsOneWidget);
+    });
+
+    testWidgets('dark theme is Material 3', (tester) async {
+      final container = _container();
       addTearDown(container.dispose);
 
       await tester.pumpWidget(_harness(container));
@@ -122,7 +126,7 @@ void main() {
 
       final context = tester.element(find.byType(NavigationBar));
       final theme = Theme.of(context);
-      expect(theme.brightness, Brightness.light);
+      expect(theme.brightness, Brightness.dark);
       expect(theme.useMaterial3, isTrue);
     });
 
@@ -134,11 +138,14 @@ void main() {
     });
 
     test('appRouterProvider resolves a configured GoRouter', () {
-      final container = _unlockedContainer();
+      final container = _container();
       addTearDown(container.dispose);
 
       final router = container.read(appRouterProvider);
       expect(router, isA<GoRouter>());
+      // The router starts on Home; there is no lock route anymore.
+      expect(router.routeInformationProvider.value.uri.path,
+          AppRoutes.home);
     });
   });
 }

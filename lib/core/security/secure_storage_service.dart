@@ -1,7 +1,7 @@
 /// Abstraction over Keystore-backed secure storage.
 ///
-/// Used for sensitive data such as tokens, the unlock PIN and emergency
-/// history. Implementations are injected in later phases; presentation code
+/// Used for sensitive data such as trusted contacts and emergency history.
+/// Implementations are injected in later phases; presentation code
 /// never touches the storage plugin directly.
 abstract interface class SecureStorageService {
   /// Reads the value stored under [key], or `null` when absent.

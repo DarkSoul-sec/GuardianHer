@@ -5,6 +5,7 @@ import '../../../core/result/result.dart';
 import '../../../shared/widgets/feature_error.dart';
 import '../application/contacts_providers.dart';
 import '../application/contacts_state.dart';
+import '../domain/country_code.dart';
 import '../domain/phone_number.dart';
 import '../domain/trusted_contact.dart';
 import '../domain/trusted_contact_validator.dart';
@@ -21,14 +22,18 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
 
+  String _countryCode = CountryCode.defaultDialing;
   bool _submitting = false;
   String? _error;
+  bool _isEmergencyContact = true;
 
   @override
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -43,7 +48,10 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
         .read(contactsControllerProvider.notifier)
         .addContact(
           name: _nameController.text,
-          phoneNumber: _phoneController.text,
+          phoneNumber:
+              PhoneNumber.withDialingCode(_countryCode, _phoneController.text),
+          email: _emailController.text,
+          isEmergencyContact: _isEmergencyContact,
         );
 
     if (!mounted) return;
@@ -69,11 +77,16 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
         formKey: _formKey,
         nameController: _nameController,
         phoneController: _phoneController,
+        emailController: _emailController,
+        countryCode: _countryCode,
+        onCountryCodeChanged: (code) => setState(() => _countryCode = code),
         submitting: _submitting,
         error: _error,
         submitLabel: 'Save contact',
         icon: Icons.person_add_alt_1,
         onSubmit: _submit,
+        initialIsEmergencyContact: _isEmergencyContact,
+        onEmergencyContactChanged: (value) => setState(() => _isEmergencyContact = value),
       ),
     );
   }
@@ -98,8 +111,11 @@ class _EditContactScreenState extends ConsumerState<EditContactScreen> {
 
   late TextEditingController _nameController;
   late TextEditingController _phoneController;
+  late TextEditingController _emailController;
   bool _initialized = false;
+  bool _isEmergencyContact = true;
 
+  String _countryCode = CountryCode.defaultDialing;
   bool _submitting = false;
   String? _error;
 
@@ -108,6 +124,7 @@ class _EditContactScreenState extends ConsumerState<EditContactScreen> {
     if (_initialized) {
       _nameController.dispose();
       _phoneController.dispose();
+      _emailController.dispose();
     }
     super.dispose();
   }
@@ -116,7 +133,19 @@ class _EditContactScreenState extends ConsumerState<EditContactScreen> {
     if (_initialized) return;
     _initialized = true;
     _nameController = TextEditingController(text: contact.name);
-    _phoneController = TextEditingController(text: contact.phoneNumber);
+    _isEmergencyContact = contact.isEmergencyContact;
+    // Show only the national number when a known country prefix is stored,
+    // defaulting to +91; otherwise show the stored number as-is.
+    final matched = CountryCode.common
+        .where((code) =>
+            contact.phoneNumber.startsWith(PhoneNumber.normalize(code.dialing)) &&
+            contact.phoneNumber.length > PhoneNumber.normalize(code.dialing).length)
+        .firstOrNull;
+    _countryCode = matched?.dialing ?? CountryCode.defaultDialing;
+    _phoneController = TextEditingController(
+      text: PhoneNumber.stripDialingCode(_countryCode, contact.phoneNumber),
+    );
+    _emailController = TextEditingController(text: contact.email ?? '');
   }
 
   Future<void> _submit() async {
@@ -131,7 +160,10 @@ class _EditContactScreenState extends ConsumerState<EditContactScreen> {
         .updateContact(
           id: widget.id,
           name: _nameController.text,
-          phoneNumber: _phoneController.text,
+          phoneNumber:
+              PhoneNumber.withDialingCode(_countryCode, _phoneController.text),
+          email: _emailController.text,
+          isEmergencyContact: _isEmergencyContact,
         );
 
     if (!mounted) return;
@@ -174,11 +206,16 @@ class _EditContactScreenState extends ConsumerState<EditContactScreen> {
         formKey: _formKey,
         nameController: _nameController,
         phoneController: _phoneController,
+        emailController: _emailController,
+        countryCode: _countryCode,
+        onCountryCodeChanged: (code) => setState(() => _countryCode = code),
         submitting: _submitting,
         error: _error,
         submitLabel: 'Save changes',
         icon: Icons.edit_outlined,
         onSubmit: _submit,
+        initialIsEmergencyContact: _isEmergencyContact,
+        onEmergencyContactChanged: (value) => setState(() => _isEmergencyContact = value),
       ),
     );
   }
@@ -190,21 +227,31 @@ class _ContactFormFields extends StatelessWidget {
     required this.formKey,
     required this.nameController,
     required this.phoneController,
+    required this.emailController,
+    required this.countryCode,
+    required this.onCountryCodeChanged,
     required this.submitting,
     required this.error,
     required this.submitLabel,
     required this.icon,
     required this.onSubmit,
+    this.initialIsEmergencyContact = true,
+    this.onEmergencyContactChanged,
   });
 
   final GlobalKey<FormState> formKey;
   final TextEditingController nameController;
   final TextEditingController phoneController;
+  final TextEditingController emailController;
+  final String countryCode;
+  final ValueChanged<String> onCountryCodeChanged;
   final bool submitting;
   final String? error;
   final String submitLabel;
   final IconData icon;
   final VoidCallback onSubmit;
+  final bool initialIsEmergencyContact;
+  final ValueChanged<bool>? onEmergencyContactChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -247,18 +294,78 @@ class _ContactFormFields extends StatelessWidget {
                     controller: phoneController,
                     keyboardType: TextInputType.phone,
                     textInputAction: TextInputAction.done,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Phone number',
-                      hintText: 'e.g. +1 555 123 4567',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.phone_outlined),
+                      hintText: 'e.g. 8965421745',
+                      border: const OutlineInputBorder(),
+                      prefixIconConstraints: const BoxConstraints(
+                        minWidth: 96,
+                        maxWidth: 96,
+                      ),
+                      prefixIcon: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: countryCode,
+                          isDense: true,
+                          isExpanded: false,
+                          style: theme.textTheme.bodySmall,
+                          borderRadius: BorderRadius.circular(8),
+                          items: [
+                            for (final code in CountryCode.common)
+                              DropdownMenuItem(
+                                value: code.dialing,
+                                child: Text(code.dialing),
+                              ),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              onCountryCodeChanged(value);
+                            }
+                          },
+                        ),
+                      ),
                     ),
                     validator: (value) {
-                      return PhoneNumber.isValid(value ?? '')
+                      final full = PhoneNumber.withDialingCode(
+                        countryCode,
+                        value ?? '',
+                      );
+                      return PhoneNumber.isValid(full)
                           ? null
                           : 'Enter a valid phone number (7–15 digits).';
                     },
                     onFieldSubmitted: (_) => onSubmit(),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.done,
+                    autofillHints: const [AutofillHints.email],
+                    decoration: const InputDecoration(
+                      labelText: 'Email (optional)',
+                      hintText: 'Used if no SMS app is available',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.alternate_email),
+                    ),
+                    validator: (value) {
+                      final normalized = TrustedContact.normalizeEmail(value);
+                      if (normalized != null &&
+                          !TrustedContactValidator.isValidEmail(normalized)) {
+                        return 'Enter a valid email address or leave it empty.';
+                      }
+                      return null;
+                    },
+                    onFieldSubmitted: (_) => onSubmit(),
+                  ),
+                  const SizedBox(height: 16),
+                  SwitchListTile(
+                    title: const Text('Receive SOS alerts'),
+                    subtitle: const Text(
+                      'Include this contact in emergency SOS messages',
+                    ),
+                    value: initialIsEmergencyContact,
+                    onChanged: onEmergencyContactChanged,
+                    secondary: const Icon(Icons.warning_amber_rounded),
                   ),
                   if (error != null) ...[
                     const SizedBox(height: 16),

@@ -64,6 +64,59 @@ void main() {
     });
   });
 
+  group('validateDraft email (optional, Phase 3G)', () {
+    test('blank or whitespace-only email normalizes to null', () {
+      for (final raw in [null, '', '   ']) {
+        final result = validator.validateDraft(
+          name: 'Mom',
+          phoneNumber: '911234567890',
+          email: raw,
+        );
+        expect(result, isA<Ok>(), reason: 'input: $raw');
+        expect((result as Ok).value.email, isNull);
+      }
+    });
+
+    test('trims and lower-cases a valid address', () {
+      final result = validator.validateDraft(
+        name: 'Mom',
+        phoneNumber: '911234567890',
+        email: '  Mom@Example.COM ',
+      );
+      expect((result as Ok).value.email, 'mom@example.com');
+    });
+
+    test('rejects an address without an @', () {
+      final result = validator.validateDraft(
+        name: 'Mom',
+        phoneNumber: '911234567890',
+        email: 'not-an-address',
+      );
+      final failure = (result as Err).failure;
+      expect(failure, isA<InvalidContactFailure>());
+      expect((failure as InvalidContactFailure).field, 'email');
+    });
+
+    test('rejects an address without a dot in the domain', () {
+      final result = validator.validateDraft(
+        name: 'Mom',
+        phoneNumber: '911234567890',
+        email: 'mom@localhost',
+      );
+      expect(((result as Err).failure as InvalidContactFailure).field, 'email');
+    });
+
+    test('rejects an over-long address', () {
+      final local = 'a' * (TrustedContactValidator.maxEmailLength - 6);
+      final result = validator.validateDraft(
+        name: 'Mom',
+        phoneNumber: '911234567890',
+        email: '$local@example.com',
+      );
+      expect(((result as Err).failure as InvalidContactFailure).field, 'email');
+    });
+  });
+
   group('duplicate detection', () {
     test('detects a duplicate phone number', () {
       final contacts = [contact('1', '911234567890', 1)];

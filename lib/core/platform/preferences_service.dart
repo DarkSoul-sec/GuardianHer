@@ -1,7 +1,7 @@
 /// Abstraction over lightweight, non-sensitive preferences storage.
 ///
-/// Backed by shared_preferences. Never stores sensitive data (tokens, PIN
-/// material, contact information); those belong in [SecureStorageService].
+/// Backed by shared_preferences. Never stores sensitive data (tokens, contact
+/// information); those belong in [SecureStorageService].
 abstract interface class PreferencesService {
   Future<String?> getString(String key);
   Future<void> setString(String key, String value);

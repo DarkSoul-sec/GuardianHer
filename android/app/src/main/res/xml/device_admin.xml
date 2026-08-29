@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Device admin policy declaration for GuardianHer.
+     No policies are declared: admin status is used only so that the system
+     blocks force-stop and uninstall while it is active, keeping the Shake SOS
+     detector alive. Locking/wipe APIs are never used. -->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies/>
+</device-admin>
