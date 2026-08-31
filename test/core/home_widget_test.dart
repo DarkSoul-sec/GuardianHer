@@ -69,14 +69,16 @@ void main() {
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
     }
 
-    testWidgets('routes to SOS when the widget was tapped', (tester) async {
+    testWidgets('routes to SOS and arms when the widget was tapped', (tester) async {
       final router = buildRouter();
       await pumpRouter(tester, router);
 
-      routeWidgetLaunch(Uri.parse('guardianher://sos'));
+      var armed = false;
+      routeLaunch(Uri.parse('guardianher://sos'), (uri) => armed = true);
       await tester.pumpAndSettle();
 
       expect(router.routerDelegate.currentConfiguration.uri.path, AppRoutes.sos);
+      expect(armed, isTrue);
     });
 
     testWidgets('routes to SOS and arms on a QS tile URI', (tester) async {

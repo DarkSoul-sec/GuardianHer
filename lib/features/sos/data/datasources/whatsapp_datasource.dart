@@ -1,9 +1,9 @@
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../core/platform/whatsapp_service.dart';
-import '../../core/result/result.dart';
-import '../../features/contacts/domain/phone_number.dart';
+import 'package:guardianher/core/platform/whatsapp_service.dart';
+import 'package:guardianher/core/result/result.dart';
+import 'package:guardianher/features/contacts/domain/phone_number.dart';
 
 /// Canonical digits-only chat target for [phoneNumber], or `null` when the
 /// number cannot produce a valid WhatsApp target.

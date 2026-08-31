@@ -167,7 +167,7 @@ class EmergencySmsService : Service() {
             return START_NOT_STICKY
         }
 
-        Log.d(TAG, "[EmergencySMS] Guardian count: ${parsed.size}, SIM count: ${smsManager.activeSimCount()}")
+        Log.d(TAG, "[EmergencySMS] Guardian count: ${parsed.size}, SIM count: ${smsManager.activeSimCount()}, SIM ready: ${smsManager.isSimReady()}")
 
         // Build the final SMS body BEFORE launching coroutines to avoid race
         // condition where the coroutine reads a stale value.
@@ -181,6 +181,12 @@ class EmergencySmsService : Service() {
             body
         }
         smsBody = finalBody
+
+        // Diagnostic: log SMS body length and first guardian's destination (masked)
+        if (parsed.isNotEmpty()) {
+            val firstDest = smsManager.formatDestination(parsed[0].phoneNumber)
+            Log.d(TAG, "[EmergencySMS] SMS body length: ${smsBody.length}, first dest suffix: ${firstDest.takeLast(4)}")
+        }
 
         // Start processing all guardians concurrently.
         for (g in parsed) {
@@ -238,6 +244,14 @@ class EmergencySmsService : Service() {
             return
         }
 
+        // Verify SIM is ready before each send attempt
+        if (!smsManager.isSimReady()) {
+            Log.w(TAG, "[EmergencySMS] SIM not ready for ${maskId(guardian.id)}")
+            guardians[guardian.id]?.completed = true
+            flutterCallback?.onGuardianStatusChanged(guardian.id, "failed", "SIM not ready")
+            return
+        }
+
         for (attempt in 0 until MAX_ATTEMPTS) {
             if (guardians[guardian.id]?.completed == true) break
 
@@ -256,7 +270,8 @@ class EmergencySmsService : Service() {
                 }
                 is EmergencySmsResult.Failed -> {
                     Log.w(TAG, "[EmergencySMS] SMS failed for ${maskId(guardian.id)}: ${result.description}")
-                    if (attempt < MAX_ATTEMPTS - 1) {
+                    // Only retry on transient failures
+                    if (attempt < MAX_ATTEMPTS - 1 && isTransientFailure(result.description)) {
                         flutterCallback?.onGuardianStatusChanged(guardian.id, "retrying", result.description)
                         delay(RETRY_DELAY_MS)
                     } else {
@@ -265,6 +280,18 @@ class EmergencySmsService : Service() {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Determines if a failure is transient and worth retrying.
+     * GENERIC_FAILURE, NO_SERVICE, RADIO_OFF may be transient.
+     * NULL_PDU, LIMIT_EXCEEDED, SHORT_CODE_NEVER_ALLOWED, SHORT_CODE_NOT_ALLOWED are permanent.
+     */
+    private fun isTransientFailure(description: String): Boolean {
+        return when (description) {
+            "GENERIC_FAILURE", "NO_SERVICE", "RADIO_OFF" -> true
+            else -> false
         }
     }
 
@@ -281,11 +308,26 @@ class EmergencySmsService : Service() {
         attempt: Int,
     ): EmergencySmsResult {
         val deferred = CompletableDeferred<EmergencySmsResult>()
+        val parts = smsManager.divideMessage(body)
+        var successfulParts = 0
+        var completed = false
 
-        // Register a one-shot receiver for this specific SENT result.
+        // Register one receiver for every SENT result. Multipart SMS must not
+        // report success until Android has accepted every encoded part.
         val receiver = EmergencySmsResultReceiver { id, _, result ->
-            if (id == guardianId) {
-                deferred.complete(result)
+            if (id != guardianId || completed) return@EmergencySmsResultReceiver
+            when (result) {
+                is EmergencySmsResult.Failed -> {
+                    completed = true
+                    deferred.complete(result)
+                }
+                is EmergencySmsResult.Sent -> {
+                    successfulParts++
+                    if (successfulParts == parts.size) {
+                        completed = true
+                        deferred.complete(result)
+                    }
+                }
             }
         }
         val filter = android.content.IntentFilter(EmergencySmsResultReceiver.ACTION_SMS_SENT)
@@ -296,10 +338,15 @@ class EmergencySmsService : Service() {
         }
 
         try {
-            val sentIntent = EmergencySmsResultReceiver.createSentIntent(
-                this, guardianId, attempt,
-            )
-            smsManager.sendSms(destination, body, sentIntent)
+            val sentIntents = parts.indices.map { partIndex ->
+                EmergencySmsResultReceiver.createSentIntent(
+                    this,
+                    guardianId,
+                    attempt,
+                    partIndex,
+                )
+            }
+            smsManager.sendSms(destination, body, sentIntents)
 
             // Wait for modem result (max 30 s).
             return withTimeoutOrNull(30_000L) {

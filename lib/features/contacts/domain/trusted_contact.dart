@@ -62,10 +62,11 @@ class TrustedContact {
   final String id;
   final String name;
   final String phoneNumber;
-  final String? email;
   final int priority;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String? email;
+  final bool isEmergencyContact;
 
   /// Canonicalizes an email input: trimmed, lower-cased, blank → null.
   static String? normalizeEmail(String? value) {

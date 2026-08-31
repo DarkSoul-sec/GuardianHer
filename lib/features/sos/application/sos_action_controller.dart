@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/platform/call_service.dart';
+import '../../../core/platform/direct_sms_service.dart';
 import '../../../core/platform/live_sharing_service.dart';
 import '../../../core/platform/location_service.dart';
 import '../../../core/platform/notification_service.dart';
@@ -18,9 +20,8 @@ import '../../contacts/domain/phone_number.dart';
 import '../../contacts/domain/trusted_contact.dart';
 import '../../live_location/application/live_location_providers.dart';
 import '../../location/application/location_providers.dart';
-import '../../location/application/location_state.dart'
+import '../../location/application/location_state.dart';
 import '../../location/domain/location_share_message.dart';
-import '../data/datasources/sms_datasource_provider.dart';
 import '../data/datasources/whatsapp_datasource_provider.dart';
 import '../domain/sos_failures.dart';
 import 'sos_actions_state.dart';
@@ -58,7 +59,7 @@ class SosActionController extends Notifier<SosActionsState> {
   VibrationService get _vibration => ref.read(vibrationServiceProvider);
   CallService get _call => ref.read(callServiceProvider);
   SmsService get _sms => ref.read(smsServiceProvider);
-  SmsDataSource get _smsDataSource => ref.read(smsDataSourceProvider);
+  DirectSmsService get _directSms => ref.read(directSmsServiceProvider);
   WhatsAppDataSource get _whatsAppDataSource => ref.read(whatsAppDataSourceProvider);
   LiveSharingService get _liveSharing => ref.read(liveSharingServiceProvider);
   ContactsRepository get _contactsRepository =>
@@ -208,8 +209,8 @@ Future<void> _activateEffects() async {
 
     await _startAlert();
 
-    // Send emergency WhatsApp messages to all trusted contacts automatically.
-    unawaited(_sendEmergencyWhatsAppToContacts());
+    // NO automatic WhatsApp — WhatsApp is user-mediated.
+    // Users can trigger it from the SOS screen when they want to send via WhatsApp.
 
     final permission = await _notification.isPermissionGranted();
     final granted = permission is Ok<bool> && permission.value;
@@ -226,8 +227,8 @@ Future<void> _activateEffects() async {
     final shown = await _notification.showSosActive();
     state = state.copyWith(
       notificationStatus: shown.isOk
-            ? SosNotificationStatus.active
-            : SosNotificationStatus.unavailable,
+              ? SosNotificationStatus.active
+              : SosNotificationStatus.unavailable,
     );
   }
 
@@ -349,7 +350,7 @@ Future<void> _activateEffects() async {
 
       // Get battery percentage
       try {
-        batteryPercentage = await _smsDataSource.getBatteryPercentage();
+        batteryPercentage = await _directSms.getBatteryPercentage();
       } catch (_) {
         // Battery read is best-effort
       }
@@ -699,6 +700,101 @@ Future<void> _activateEffects() async {
     );
   }
 
+  /// Opens WhatsApp with pre-filled SOS message for all emergency contacts.
+  ///
+  /// User-mediated: the user chooses to send via WhatsApp from the SOS screen.
+  /// Opens a single WhatsApp group or individual chats for emergency contacts.
+  /// Returns success if at least one WhatsApp chat was opened.
+  Future<Result<SosActionOutcome>> sendSosViaWhatsApp() async {
+    return _callAction(
+      SosActionKind.sendWhatsApp,
+      () async {
+        try {
+          final contactsResult = await _contactsRepository.loadContacts();
+          final contacts = contactsResult.fold(
+            (list) => list,
+            (_) => <TrustedContact>[],
+          );
+
+          if (contacts.isEmpty) {
+            return const Err(InvalidSosContactFailure(
+              message: 'No trusted contacts saved.',
+            ));
+          }
+
+          // Only send to contacts marked as emergency contacts
+          final emergencyContacts = contacts
+              .where((c) => c.isEmergencyContact)
+              .toList();
+
+          if (emergencyContacts.isEmpty) {
+            return const Err(InvalidSosContactFailure(
+              message: 'No emergency contacts configured.',
+            ));
+          }
+
+          String? locationUrl;
+          String? liveLocationUrl;
+          int? batteryPercentage;
+
+          // Get location URL from location controller
+          final locationState = ref.read(locationControllerProvider);
+          if (locationState.status == LocationStatus.captured &&
+              locationState.point != null) {
+            locationUrl = buildMapsShareUrl(locationState.point!);
+          }
+
+          // Get live location URL if active
+          final liveLocationState = ref.read(liveLocationControllerProvider);
+          if (liveLocationState.isActive && liveLocationState.session != null) {
+            liveLocationUrl = liveLocationState.session!.shareUrl;
+          }
+
+          // Get battery percentage
+          try {
+            batteryPercentage = await _directSms.getBatteryPercentage();
+          } catch (_) {
+            // Battery read is best-effort
+          }
+
+          // Build emergency message
+          final message = _buildEmergencyMessage(
+            locationUrl: locationUrl,
+            liveLocationUrl: liveLocationUrl,
+            batteryPercentage: batteryPercentage,
+          );
+
+          // Open WhatsApp for all emergency contacts
+          final numbers = emergencyContacts
+              .map((c) => PhoneNumber.normalize(c.phoneNumber))
+              .where(PhoneNumber.isValid)
+              .toList();
+
+          final successCount = await _whatsAppDataSource.openWhatsAppForAllContacts(
+            numbers: numbers,
+            message: message,
+          );
+
+          if (successCount > 0) {
+            return Ok(SosActionOutcome.success(
+              SosActionKind.sendWhatsApp,
+              'WhatsApp opened for $successCount/${numbers.length} contacts.',
+            ));
+          } else {
+            return const Err(InvalidSosContactFailure(
+              message: 'WhatsApp could not be opened.',
+            ));
+          }
+        } catch (e) {
+          debugPrint('[SOS] WhatsApp error: $e');
+          return const Err(InvalidSosContactFailure(
+            message: 'Failed to open WhatsApp.',
+          ));
+        }
+      },
+    );
+  }
+
   Future<Result<SosActionOutcome>> _callAction(
     SosActionKind kind,
     Future<Result<void>> Function() operation, [
@@ -719,6 +815,7 @@ Future<void> _activateEffects() async {
           SosActionKind.callContact => 'Dialer opened.',
           SosActionKind.messageContact => 'SMS composer opened.',
           SosActionKind.callEmergency => 'Dialer opened.',
+          SosActionKind.sendWhatsApp => 'WhatsApp opened.',
         },
       Err(:final failure) => failure.message,
     };

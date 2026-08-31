@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:guardianher/core/error/failures.dart';
 import 'package:guardianher/core/platform/emergency_sms_bridge.dart';
 import 'package:guardianher/core/providers.dart';
+import 'package:guardianher/core/result/result.dart';
 import 'package:guardianher/features/contacts/application/contacts_providers.dart';
 import 'package:guardianher/features/contacts/domain/contacts_repository.dart';
 import 'package:guardianher/features/contacts/domain/trusted_contact.dart';
@@ -34,12 +35,14 @@ class _FakeContactsRepository implements ContactsRepository {
     required String name,
     required String phoneNumber,
     String? email,
+    bool isEmergencyContact = true,
   }) async {
     final contact = TrustedContact.create(
       name: name,
       phoneNumber: phoneNumber,
       priority: _contacts.length + 1,
       email: email,
+      isEmergencyContact: isEmergencyContact,
     );
     _contacts = [..._contacts, contact];
     return Ok(contact);
@@ -51,6 +54,7 @@ class _FakeContactsRepository implements ContactsRepository {
     required String name,
     required String phoneNumber,
     String? email,
+    bool isEmergencyContact = true,
   }) async => Err(const UnexpectedFailure());
 
   @override
@@ -150,6 +154,10 @@ void main() {
       final state = container.read(emergencyOrchestratorProvider);
       expect(state.guardians, hasLength(3));
       expect(bridge.startCalls, 1);
+      expect(
+        bridge.lastStartGuardianIds,
+        unorderedEquals(contacts._contacts.map((contact) => contact.id)),
+      );
       expect(bridge.lastStartSmsBody, contains('SOS ALERT'));
 
       // Wait for the native bridge to emit completion.
@@ -164,7 +172,7 @@ void main() {
       final location = FakeLocationService(
         enabled: false,
         failure: const LocationServicesDisabledFailure(),
-      );
+      )..openLocationSettingsResult = false;
 
       final container = createContainer(
         overrides: [
@@ -178,7 +186,8 @@ void main() {
       container.read(emergencyOrchestratorProvider);
       container.read(sosControllerProvider.notifier).startSos();
       await settle();
-      // Wait for GPS timeout (15s in orchestrator, but async).
+      // The settings launch is declined, so the native SMS path must still
+      // receive the emergency without a location fix.
       await Future<void>.delayed(const Duration(milliseconds: 600));
       await settle();
 
@@ -210,7 +219,7 @@ void main() {
       await settle();
 
       final state = container.read(emergencyOrchestratorProvider);
-      expect(state.errorMessage, contains('No trusted contacts'));
+      expect(state.errorMessage, contains('No emergency contacts'));
       expect(bridge.startCalls, 0);
     });
 
@@ -230,11 +239,11 @@ void main() {
       container.read(emergencyOrchestratorProvider);
       container.read(sosControllerProvider.notifier).startSos();
       await settle();
-      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await Future<void>.delayed(const Duration(milliseconds: 1800));
       await settle();
 
       final state = container.read(emergencyOrchestratorProvider);
-      expect(state.errorMessage, contains('SMS permission denied'));
+      expect(state.errorMessage, contains('SMS permission not granted'));
       expect(bridge.startCalls, 0);
     });
 
@@ -351,7 +360,7 @@ void main() {
 
     test('cancels native emergency when SOS ends', () async {
       final contacts = _FakeContactsRepository([_contact()]);
-      final bridge = FakeNativeEmergencySmsBridge();
+      final bridge = FakeNativeEmergencySmsBridge()..autoComplete = false;
       final timer = FakeSosTimer();
 
       final container = createContainer(

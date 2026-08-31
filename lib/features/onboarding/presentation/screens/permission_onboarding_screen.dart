@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:permission_handler/permission_handler.dart';
 
-import '../../../../core/routing/route_guards.dart';
-import '../../../../app/theme/app_theme.dart';
-import '../../../../shared/widgets/premium_components.dart';
-import '../application/permission_onboarding_providers.dart';
+import 'package:guardianher/core/platform/shake_sos_service.dart';
+import 'package:guardianher/core/routing/route_guards.dart';
+import 'package:guardianher/app/theme/app_theme.dart';
+import 'package:guardianher/features/onboarding/application/permission_onboarding_providers.dart';
+import 'package:guardianher/features/onboarding/application/permission_onboarding_notifier.dart';
+import 'package:guardianher/features/shake/application/shake_sos_providers.dart';
 
 class PermissionOnboardingScreen extends ConsumerStatefulWidget {
   const PermissionOnboardingScreen({super.key});
@@ -285,7 +286,7 @@ class _StatusIcon extends StatelessWidget {
   }
 }
 
-class _ActionButtons extends StatelessWidget {
+class _ActionButtons extends ConsumerWidget {
   const _ActionButtons({
     required this.item,
     required this.onGrant,
@@ -297,7 +298,61 @@ class _ActionButtons extends StatelessWidget {
   final VoidCallback onSettings;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Special handling for Shake SOS - it's an in-app feature toggle, not a system permission
+    if (item.step == PermissionStep.shakeSos) {
+      final shakeSosEnabled = ref.watch(shakeSosEnabledProvider);
+      if (item.isGranted) {
+        return Row(
+          children: [
+            Icon(
+              Icons.check_circle_rounded,
+              color: AppTheme.violet,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Enabled',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.violet,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(width: 12),
+            Switch(
+              value: shakeSosEnabled,
+              onChanged: isShakeSosSupported
+                  ? (value) => ref
+                      .read(shakeSosEnabledProvider.notifier)
+                      .setEnabled(value)
+                  : null,
+              activeThumbColor: AppTheme.violet,
+              activeTrackColor: AppTheme.violet.withValues(alpha: 0.3),
+              inactiveThumbColor: AppTheme.textDisabled,
+              inactiveTrackColor: AppTheme.surfaceVariant,
+            ),
+          ],
+        );
+      }
+      if (item.isPending) {
+        return const SizedBox.shrink();
+      }
+      return FilledButton.icon(
+        onPressed: onGrant,
+        icon: const Icon(Icons.vibration, size: 18),
+        label: const Text('Enable'),
+        style: FilledButton.styleFrom(
+          backgroundColor: AppTheme.violet,
+          foregroundColor: AppTheme.textOnViolet,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
+
+    // Standard permission handling for other steps
     if (item.isGranted) {
       return Row(
         children: [

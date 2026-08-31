@@ -25,6 +25,7 @@ class EmergencySmsResultReceiver(
         const val ACTION_SMS_SENT = "com.guardianher.app.emergency.SMS_SENT"
         const val EXTRA_GUARDIAN_ID = "guardian_id"
         const val EXTRA_ATTEMPT = "attempt"
+        const val EXTRA_PART_INDEX = "part_index"
         private const val TAG = "EmergencySmsResult"
 
         /**
@@ -35,14 +36,16 @@ class EmergencySmsResultReceiver(
             context: Context,
             guardianId: String,
             attempt: Int,
+            partIndex: Int,
         ): android.app.PendingIntent {
             val intent = Intent(ACTION_SMS_SENT).apply {
                 putExtra(EXTRA_GUARDIAN_ID, guardianId)
                 putExtra(EXTRA_ATTEMPT, attempt)
+                putExtra(EXTRA_PART_INDEX, partIndex)
                 setPackage(context.packageName)
             }
-            // Unique request code: hash of guardian id + attempt.
-            val requestCode = (guardianId.hashCode() shl 4) or (attempt and 0xF)
+            // Unique request code for every part of an attempted guardian SMS.
+            val requestCode = 31 * (31 * guardianId.hashCode() + attempt) + partIndex
             return android.app.PendingIntent.getBroadcast(
                 context,
                 requestCode,

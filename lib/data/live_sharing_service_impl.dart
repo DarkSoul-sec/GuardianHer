@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 
-import '../platform/live_sharing_service.dart';
+import 'package:guardianher/core/platform/live_sharing_service.dart';
 
 /// MethodChannel implementation of [LiveSharingService].
 ///

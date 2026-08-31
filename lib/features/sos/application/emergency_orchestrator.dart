@@ -344,29 +344,18 @@ class EmergencyOrchestrator extends Notifier<EmergencyOrchestratorState> {
           .toList();
       state = state.copyWith(guardians: deliveries);
 
-      // 5. Request SEND_SMS runtime permission via native Android API
-      //    (not permission_handler — too unreliable on OEM Android).
+      // 5. Verify SEND_SMS permission (must be granted during onboarding).
+      //    Do NOT request at SOS time — the Activity may not be in foreground
+      //    (e.g., shake SOS, tile SOS, widget SOS), so the dialog won't show.
       debugPrint('[EmergencySMS] Checking SMS permission...');
       final hasPermission = await _bridge.checkSmsPermission();
       if (!hasPermission) {
-        debugPrint('[EmergencySMS] SEND_SMS not granted, requesting via native API...');
-        var granted = await _bridge.requestSmsPermission();
-        // Retry once after a short delay — handles cold-start where Activity
-        // isn't fully resumed yet when the first request fires.
-        if (!granted) {
-          debugPrint('[EmergencySMS] First request failed/denied, retrying in 1s...');
-          await Future<void>.delayed(const Duration(seconds: 1));
-          granted = await _bridge.requestSmsPermission();
-        }
-        if (!granted) {
-          debugPrint('[EmergencySMS] SEND_SMS permission denied by user');
-          state = state.copyWith(
-            errorMessage: () => 'SMS permission denied. Emergency messages cannot be sent.',
-          );
-          _processing = false;
-          return;
-        }
-        debugPrint('[EmergencySMS] SEND_SMS permission granted');
+        debugPrint('[EmergencySMS] SEND_SMS not granted — automatic SMS unavailable');
+        state = state.copyWith(
+          errorMessage: () => 'SMS permission not granted. Enable it in Permissions Setup to send automatic emergency messages.',
+        );
+        _processing = false;
+        return;
       }
 
       // 6. Build SMS body and delegate to native foreground service.

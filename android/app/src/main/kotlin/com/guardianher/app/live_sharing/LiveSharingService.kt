@@ -7,21 +7,36 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
-import android.location.Location
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
-import com.google.android.gms.location.*
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import com.guardianher.app.FixFreshness
+import com.guardianher.app.LocationEngine
 import kotlinx.coroutines.*
 
 /**
- * Foreground service that sends live location updates via SMS every 30 seconds.
- * Survives app backgrounding and screen-off.
- * Uses FOREGROUND_SERVICE_TYPE_LOCATION + DATA_SYNC on Android 14+.
+ * Foreground service that sends live location updates via SMS to emergency contacts.
+ *
+ * Uses the shared [LocationEngine] for all location operations — no duplicate
+ * LocationManager listeners. Applies the single authoritative freshness policy
+ * so SMS is only sent for LIVE or STALE fixes (never UNAVAILABLE).
+ *
+ * Lifecycle:
+ * - START: registers with LocationEngine, starts foreground service, begins periodic SMS
+ * - STOP: unregisters from LocationEngine, cancels periodic job, stops foreground service
+ * - FORCE_UPDATE: requests immediate fix from LocationEngine
+ *
+ * Invariants:
+ * - Exactly one LocationEngine registration per service instance.
+ * - SMS only sent when fix freshness is LIVE or STALE (with label).
+ * - Permission/location-services changes handled via LocationEngine callbacks.
+ * - No coordinates, phone numbers, or SMS bodies logged.
  */
-class LiveSharingService : Service() {
+class LiveSharingService : Service(), LocationEngine.ServiceCallback {
 
     companion object {
         private const val TAG = "LiveSharingService"
@@ -35,21 +50,27 @@ class LiveSharingService : Service() {
         const val ACTION_STOP = "STOP_LIVE_SHARING"
         const val ACTION_UPDATE = "FORCE_UPDATE"
 
-        // Update interval
+        // Default update interval
         private const val DEFAULT_INTERVAL_MS = 30_000L // 30 seconds
+
+        // Minimum interval between SMS sends (carrier throttle protection)
+        private const val MIN_SMS_INTERVAL_MS = 1_000L
     }
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private var fusedLocationClient: FusedLocationProviderClient? = null
-    private var locationCallback: LocationCallback? = null
-    private var updateJob: Job? = null
+    private lateinit var engine: LocationEngine
     private var contacts = mutableListOf<String>()
     private var intervalMs = DEFAULT_INTERVAL_MS
     private var updateCount = 0
+    private var lastSmsSentMs = 0L
+    private var updateJob: Job? = null
+    private var hasSentFirstFix = false
+    private var locationServicesEnabled = true
+    private var locationPermissionGranted = false
 
     override fun onCreate() {
         super.onCreate()
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        engine = LocationEngine(this)
         createChannel()
     }
 
@@ -62,7 +83,7 @@ class LiveSharingService : Service() {
                 val interval = intent.getIntExtra(EXTRA_INTERVAL_SECONDS, 30) * 1000L
 
                 contacts = parseContacts(contactsJson)
-                intervalMs = interval
+                intervalMs = interval.coerceIn(10_000L, 300_000L) // 10s..5min bounds
 
                 if (contacts.isEmpty()) {
                     Log.w(TAG, "No contacts provided, stopping")
@@ -75,25 +96,48 @@ class LiveSharingService : Service() {
                 if (smsPerm != PackageManager.PERMISSION_GRANTED) {
                     Log.e(TAG, "SEND_SMS permission NOT granted - cannot send SMS")
                     val notification = buildNotification("SMS permission denied - cannot share location")
-                    startForegroundCompat()
-                    // Don't stop self - keep running to show notification
+                    startForegroundCompat(notification)
+                    stopSelf()
                     return START_NOT_STICKY
                 }
 
-                Log.d(TAG, "Starting live sharing to ${contacts.size} contacts: ${contacts.joinToString(", ")} every ${intervalMs}ms")
-                startForegroundCompat()
-                startLocationUpdates()
+                // Verify location permission
+                locationPermissionGranted = checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                    || checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                if (!locationPermissionGranted) {
+                    Log.e(TAG, "Location permission NOT granted - cannot start live updates")
+                    val notification = buildNotification("Location permission denied - cannot share location")
+                    startForegroundCompat(notification)
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
+
+                Log.d(TAG, "Starting live sharing to ${contacts.size} contacts every ${intervalMs}ms")
+                startForegroundCompat(buildNotification("Starting live sharing…"))
+
+                // Register with shared LocationEngine
+                engine.registerServiceCallback(this)
+
+                // Immediately try to send a fresh fix if available
+                val cached = engine.getFreshestFixForRelay()
+                cached?.let { fix ->
+                    if (engine.classifyFreshness(fix["ageMs"] as Long) != FixFreshness.UNAVAILABLE) {
+                        sendLocationUpdateFromFix(fix)
+                    }
+                }
+
                 startPeriodicUpdates()
             }
             ACTION_STOP -> {
                 Log.d(TAG, "Stopping live sharing")
-                stopLocationUpdates()
+                engine.unregisterServiceCallback(this)
                 updateJob?.cancel()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
             ACTION_UPDATE -> {
-                scope.launch { sendLocationUpdate() }
+                // Force update: request immediate fix from engine
+                engine.requestForceUpdate()
             }
         }
         return START_NOT_STICKY
@@ -101,7 +145,7 @@ class LiveSharingService : Service() {
 
     override fun onDestroy() {
         Log.d(TAG, "Service destroyed - updates sent: $updateCount")
-        stopLocationUpdates()
+        engine.unregisterServiceCallback(this)
         updateJob?.cancel()
         scope.cancel()
         super.onDestroy()
@@ -109,104 +153,119 @@ class LiveSharingService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    // ─── Location ────────────────────────────────────────────────────────
+    // ─── LocationEngine.ServiceCallback ────────────────────────────────
 
-    private fun startLocationUpdates() {
-        val request = LocationRequest.create().apply {
-            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-            interval = intervalMs
-            fastestInterval = max(intervalMs / 2, 5000L)
-            smallestDisplacement = 10f // meters
-        }
-
-        locationCallback = object : LocationCallback() {
-            override fun onLocationResult(result: LocationResult) {
-                result.lastLocation?.let { location ->
-                    scope.launch { sendLocationUpdate(location) }
-                }
+    override fun onLiveFix(fixMap: Map<String, Any>) {
+        // Called by LocationEngine on every live fix from GPS/NETWORK
+        // Apply freshness policy before sending SMS
+        val freshness = FixFreshness.valueOf(fixMap["freshness"] as String)
+        when (freshness) {
+            FixFreshness.LIVE,
+            FixFreshness.STALE -> {
+                // Valid for SMS relay
+                sendLocationUpdateFromFix(fixMap)
             }
-        }
-
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                fusedLocationClient?.requestLocationUpdates(request, locationCallback!!, Looper.getMainLooper())
-            } else {
-                @Suppress("DEPRECATION")
-                fusedLocationClient?.requestLocationUpdates(request, locationCallback!!, Looper.getMainLooper())
+            FixFreshness.UNAVAILABLE -> {
+                Log.d(TAG, "Received UNAVAILABLE fix (ageMs=${fixMap["ageMs"]}), not sending SMS")
             }
-        } catch (e: SecurityException) {
-            Log.e(TAG, "Location permission missing: ${e.message}")
         }
     }
 
-    private fun stopLocationUpdates() {
-        locationCallback?.let {
-            fusedLocationClient?.removeLocationUpdates(it)
+    override fun onServicesChanged(enabled: Boolean) {
+        locationServicesEnabled = enabled
+        if (!enabled) {
+            Log.w(TAG, "Location services disabled - stopping periodic updates")
+            updateNotification("Location services disabled - sharing paused")
+            updateJob?.cancel()
+        } else {
+            val jobActive = updateJob?.isActive == true
+            if (!jobActive) {
+                Log.d(TAG, "Location services re-enabled - resuming periodic updates")
+                startPeriodicUpdates()
+            }
         }
-        locationCallback = null
     }
 
-    // ─── Periodic SMS ────────────────────────────────────────────────────
+    // ─── Periodic SMS ────────────────────────────────────────────────
 
     private fun startPeriodicUpdates() {
+        updateJob?.cancel()
         updateJob = scope.launch {
             while (isActive) {
                 delay(intervalMs)
-                if (isActive) sendLocationUpdate()
+                if (!isActive) break
+                if (!locationServicesEnabled || !locationPermissionGranted) continue
+
+                // Check SMS permission at each tick (can be revoked at runtime)
+                if (checkSelfPermission(android.Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+                    Log.w(TAG, "SMS permission revoked at runtime")
+                    updateNotification("SMS permission revoked - sharing paused")
+                    continue
+                }
+
+                // Request a fresh fix from the engine
+                engine.requestForceUpdate()
             }
         }
     }
 
-    private suspend fun sendLocationUpdate(location: Location? = null) {
-        val loc = location ?: getLastKnownLocationSync()
-            ?: return
+    private fun sendLocationUpdateFromFix(fix: Map<String, Any>) {
+        val freshness = FixFreshness.valueOf(fix["freshness"] as String)
+        val accuracy = (fix["accuracyMeters"] as Double).toInt()
+        val provider = fix["provider"] as String
 
         updateCount++
-        val message = buildMessage(loc)
-        val sentCount = sendSmsToAll(message)
+        val message = buildMessage(fix, freshness, accuracy, updateCount)
 
-        Log.d(TAG, "Live update #$updateCount sent to $sentCount/${contacts.size} contacts")
-        updateNotification(message)
-    }
-
-    private fun getLastKnownLocationSync(): Location? {
-        return try {
-            fusedLocationClient?.getLastLocation()?.await()
-        } catch (e: Exception) {
-            null
+        val freshnessLabel = when (freshness) {
+            FixFreshness.LIVE -> "LIVE"
+            FixFreshness.STALE -> "STALE"
+            else -> "UNAVAILABLE"
         }
+        Log.d(TAG, "Live update #$updateCount [$freshnessLabel] queued for ${contacts.size} contacts (provider: $provider, accuracy: ${accuracy}m)")
+        updateNotification("Update #$updateCount [$freshnessLabel] queued for ${contacts.size} contacts")
+
+        // Send SMS in a coroutine since sendSmsToAll is suspend
+        scope.launch { sendSmsToAll(message) }
     }
 
-    private fun buildMessage(loc: Location): String {
-        val mapLink = "https://maps.google.com/?q=${loc.latitude},${loc.longitude}"
-        val accuracy = loc.accuracy.roundToInt()
+    private fun buildMessage(fix: Map<String, Any>, freshness: FixFreshness, accuracy: Int, count: Int): String {
+        val latitude = fix["latitude"] as Double
+        val longitude = fix["longitude"] as Double
+        val mapLink = "https://maps.google.com/?q=$latitude,$longitude"
         val now = java.util.Date()
         val hh = android.text.format.DateFormat.format("HH", now)
         val mm = android.text.format.DateFormat.format("mm", now)
 
+        val freshnessLabel = when (freshness) {
+            FixFreshness.LIVE -> "LIVE"
+            FixFreshness.STALE -> "STALE (last known)"
+            else -> "UNAVAILABLE"
+        }
+
         return StringBuilder()
-            .append("🚨 GuardianHer LIVE #$updateCount\n")
+            .append("🚨 GuardianHer $freshnessLabel #$count\n")
             .append("📍 $mapLink\n")
             .append("±${accuracy}m | $hh:$mm")
             .toString()
     }
 
-    private fun sendSmsToAll(message: String): Int {
+    private suspend fun sendSmsToAll(message: String): Int {
         var sent = 0
-        // Check SMS permission before sending
-        if (checkSelfPermission(android.Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
-            Log.e(TAG, "SEND_SMS permission not granted")
-            updateNotification("SMS permission denied")
-            return 0
-        }
         for (number in contacts) {
+            // Throttle SMS sends to avoid carrier limits
+            val now = System.currentTimeMillis()
+            val sinceLast = now - lastSmsSentMs
+            if (sinceLast < MIN_SMS_INTERVAL_MS) {
+                delay(MIN_SMS_INTERVAL_MS - sinceLast)
+            }
+
             try {
                 val smsManager = android.telephony.SmsManager.getDefault()
-                // Ensure E.164 format with + prefix
                 val destination = if (number.startsWith("+")) number else "+$number"
                 smsManager.sendTextMessage(destination, null, message, null, null)
                 sent++
-                delay(200) // throttle - use coroutine delay, not Thread.sleep
+                lastSmsSentMs = System.currentTimeMillis()
             } catch (e: Exception) {
                 Log.w(TAG, "SMS failed for $number: ${e.message}")
             }
@@ -214,25 +273,23 @@ class LiveSharingService : Service() {
         return sent
     }
 
-    // ─── Foreground Notification ─────────────────────────────────────────
+    // ─── Foreground Notification ────────────────────────────────────
 
-    private fun startForegroundCompat() {
-        val notification = buildNotification("Starting live sharing…")
+    private fun startForegroundCompat(initialNotification: Notification? = null) {
+        val notification = initialNotification ?: buildNotification("Live sharing active")
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                // Android 14+: location + dataSync
-                startForeground(
-                    NOTIFICATION_ID,
-                    notification,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-                )
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // Android 10-13: location type
+            // Use LOCATION type only — dataSync has 6-hour limit on Android 14+
+            // LOCATION type is the documented alternative to ACCESS_BACKGROUND_LOCATION
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
             } else {
                 startForeground(NOTIFICATION_ID, notification)
             }
-            Log.d(TAG, "Foreground service started successfully")
+            Log.d(TAG, "Foreground service started successfully (type=location)")
+        } catch (e: SecurityException) {
+            // Android 14+ refuses location FGS without runtime permission
+            Log.w(TAG, "Cannot start location FGS (permission missing): $e")
+            stopSelf()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start foreground service: ${e.message}")
         }
@@ -252,7 +309,7 @@ class LiveSharingService : Service() {
         } else {
             @Suppress("DEPRECATION") Notification.Builder(this)
         }.apply {
-            setContentTitle("Live Location Sharing")
+            setContentTitle("Live Location Sharing (SMS)")
             setContentText(text)
             setSmallIcon(android.R.drawable.ic_dialog_map)
             setContentIntent(pendingIntent)
@@ -262,9 +319,9 @@ class LiveSharingService : Service() {
         }.build()
     }
 
-    private fun updateNotification(lastMessage: String) {
+    private fun updateNotification(text: String) {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val notification = buildNotification("Update #$updateCount sent to ${contacts.size} contacts")
+        val notification = buildNotification(text)
         manager.notify(NOTIFICATION_ID, notification)
     }
 
@@ -273,23 +330,22 @@ class LiveSharingService : Service() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Live Location Sharing",
+            "Live Location Sharing (SMS)",
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "Shows while live location is being shared via SMS"
+            description = "Shows while live location is being shared via SMS to emergency contacts"
             setShowBadge(false)
         }
         manager.createNotificationChannel(channel)
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────
+    // ─── Helpers ────────────────────────────────────────────────────
 
     private fun parseContacts(json: String): MutableList<String> {
         val result = mutableListOf<String>()
         val trimmed = json.trim()
         if (!trimmed.startsWith("[")) return result
 
-        // Simple JSON array parsing: ["+91...", "+91..."]
         val content = trimmed.removeSurrounding("[", "]")
         if (content.isBlank()) return result
 

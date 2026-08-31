@@ -43,9 +43,10 @@ bool isTileSosUri(Uri? uri) =>
     uri.scheme == sosWidgetUriScheme &&
     uri.host == tileSosUriHost;
 
-/// Routes a launch URI to the SOS screen and, for arming triggers (shake
-/// detection, QS tile), invokes [onEmergencyTrigger] — which calls the single
-/// SOS activation seam. No-op until the router is up.
+/// Routes a launch URI to the SOS screen and invokes [onEmergencyTrigger] for
+/// every SOS trigger — home-screen widget, shake detector, and QS tile. The
+/// callback calls the single SOS activation seam. No-op until the router is
+/// up.
 void routeLaunch(Uri? uri, void Function(Uri)? onEmergencyTrigger) {
   if (uri == null) return;
   final router = publishedRouter;
@@ -57,7 +58,7 @@ void routeLaunch(Uri? uri, void Function(Uri)? onEmergencyTrigger) {
     debugPrint('Home widget routing: navigating to SOS from $uri');
     router.go(AppRoutes.sos);
   }
-  if (isShakeSosUri(uri) || isTileSosUri(uri)) {
+  if (isSosWidgetUri(uri) || isShakeSosUri(uri) || isTileSosUri(uri)) {
     debugPrint('Emergency trigger from $uri: arming the SOS workflow');
     onEmergencyTrigger?.call(uri);
   }

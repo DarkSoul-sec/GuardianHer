@@ -9,14 +9,13 @@ class RouteGuards {
     final done = prefs.getBool(onboardingDoneKey) ?? false;
 
     // Check critical permissions
-    final locationGranted = await Permission.location.isGranted;
-    final bgLocationGranted = await Permission.locationAlways.isGranted;
+    final locationGranted = await Permission.locationWhenInUse.isGranted;
     final smsGranted = await Permission.sms.isGranted;
     final notificationGranted = await Permission.notification.isGranted;
 
     // If onboarding never done OR critical permission revoked -> show onboarding
     if (!done) return true;
-    if (!locationGranted || !bgLocationGranted || !smsGranted || !notificationGranted) {
+    if (!locationGranted || !smsGranted || !notificationGranted) {
       return true;
     }
     return false;

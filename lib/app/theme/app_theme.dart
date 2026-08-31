@@ -29,6 +29,12 @@ abstract final class AppTheme {
   static const Color textLavender = Color(0xFFC4B5FD);
   static const Color textMuted = Color(0xFF94A3B8);
 
+  // Additional getters for compatibility
+  static const Color surfaceVariant = Color(0xFF1A1F3D);
+  static const Color textOnViolet = Color(0xFFEDE9FE);
+  static const Color textDisabled = Color(0xFF64748B);
+  static const Color glowDivider = Color(0x1FFFFFFF);
+
   static const Color sosRed = Color(0xFFEF4444);
   static const Color sosRedDark = Color(0xFFDC2626);
   static const Color sosRedGlow = Color(0x40EF4444);

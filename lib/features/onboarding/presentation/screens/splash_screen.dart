@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/routing/route_guards.dart';
-import '../../../shared/widgets/premium_components.dart';
+import 'package:guardianher/core/routing/route_guards.dart';
+import 'package:guardianher/shared/widgets/premium_components.dart';
+import 'package:guardianher/app/theme/app_theme.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});

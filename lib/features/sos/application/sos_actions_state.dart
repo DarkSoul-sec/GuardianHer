@@ -40,6 +40,7 @@ enum SosActionKind {
   callContact,
   messageContact,
   callEmergency,
+  sendWhatsApp,
 }
 
 /// A truthful, human-readable outcome of a user-triggered emergency action.

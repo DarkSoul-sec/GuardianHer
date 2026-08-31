@@ -619,6 +619,7 @@ class FakeNativeEmergencySmsBridge implements NativeEmergencySmsBridge {
   int startCalls = 0;
   int cancelCalls = 0;
   EmergencyGuardianData? lastStartGuardians;
+  List<String> lastStartGuardianIds = const [];
   String? lastStartSmsBody;
 
   final _statusController = StreamController<EmergencySmsStatusUpdate>.broadcast();
@@ -635,6 +636,7 @@ class FakeNativeEmergencySmsBridge implements NativeEmergencySmsBridge {
   }) async {
     startCalls++;
     lastStartGuardians = guardians.isNotEmpty ? guardians.first : null;
+    lastStartGuardianIds = guardians.map((guardian) => guardian.id).toList();
     lastStartSmsBody = smsBody;
 
     // Emit per-guardian "sent" status.

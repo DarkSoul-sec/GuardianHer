@@ -1,4 +1,68 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Android 13+ runtime notification permission; requested in context when
+         the user arms SOS, never at app startup. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Normal permission (auto-granted) for the bounded SOS vibration pattern. -->
+    <uses-permission android:name="android.permission.VIBRATE"/>
+    <!-- Direct SMS sending for the emergency orchestrator. Required so
+         SmsManager.sendTextMessage can dispatch messages without opening the
+         system SMS composer. Runtime permission is requested on-demand when
+         SOS activates; denied permission is handled gracefully (SMS skipped). -->
+    <uses-permission android:name="android.permission.SEND_SMS"/>
+    <!-- Needed by TelephonyManager.getSimState() on API 29+ to return the
+         correct SIM state during the pre-SMS readiness check. Normal
+         auto-granted install-time permission. -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
+    <!-- Foreground location for the one-shot "current location" capability.
+         Both coarse and fine are declared and requested together so Android 12+
+         presents the user's precise/approximate choice correctly. The app
+         works with approximate location too. No background location, no
+         foreground service in V1. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <!-- Foreground service for the optional Shake SOS detector (Phase 3E). The
+         service is only started when the user enables the feature and only reads
+         the accelerometer to detect a deliberate shake. specialUse requires the
+         FOREGROUND_SERVICE_SPECIAL_USE permission on Android 14+. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+    <!-- dataSync type for the emergency SMS foreground service (Android 14+).
+         6-hour limit is sufficient for the SMS burst with retries.
+         Requires FOREGROUND_SERVICE_DATA_SYNC permission. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <!-- Location foreground service used ONLY during an active SOS session to
+         capture a fix while the phone is locked / screen off / app backgrounded.
+         This is the documented alternative to ACCESS_BACKGROUND_LOCATION, which
+         is intentionally NOT requested: nothing tracks the user continuously.
+         Requires the FOREGROUND_SERVICE_LOCATION permission on Android 14+. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <!-- Best-effort silent location-services enable while SOS is active. Only
+         effective when granted by an operator (adb shell pm grant) or when the
+         app is a device owner; normal installs never get it and SOS falls back
+         to opening the system location settings for a one-tap switch. -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"/>
+    <!-- Lets the shake detector bring the app to the foreground even when the
+         app is fully closed. Android blocks background activity launches, and
+         the only user-grantable exemption is SYSTEM_ALERT_WINDOW ("Display over
+         other apps"). Without it, a closed-app shake is detected but the launch
+         is silently refused (BAL_BLOCK). The user opts in from Settings > Shake
+         SOS; no overlay window is ever shown. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    <!-- Normal install-time permission for Phase 3F background reliability:
+         (1) flutter_local_notifications' ScheduledNotificationBootReceiver
+         re-registers check-in reminder alarms after reboot / app update;
+         (2) our own BootReceiver restarts the user-enabled Shake SOS detector.
+         BOOT_COMPLETED etc. are protected system broadcasts, so nothing else
+         can wake the app through these receivers. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- Deliberately NOT requested:
+         * REQUEST_IGNORE_BATTERY_OPTIMIZATIONS — a Play-Store-restricted
+           permission; GuardianHer only links to the system battery settings so
+           the user whitelists it themselves.
+         * SCHEDULE_EXACT_ALARM / USE_EXACT_ALARM — check-in reminders use
+           inexactAllowWhileIdle and may drift a few minutes; that trade-off is
+           documented and intentional. -->
+
     <application
         android:label="GuardianHer"
         android:name="${applicationName}"
@@ -31,6 +95,128 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Home-screen launcher widget for the SOS flow. It is a pure launcher:
+             tapping it opens the app with a guardianher://sos URI; no app logic
+             runs inside the widget. -->
+        <receiver
+            android:name=".SosWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/sos_widget_info"/>
+        </receiver>
+        <!-- Shake SOS detector (Phase 3E). Foreground service so the accelerometer
+             keeps running when the app is closed; started/stopped by the user from
+             Settings > Shake SOS. -->
+        <service
+            android:name=".ShakeSosService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:stopWithTask="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Deliberate shake SOS detection for personal safety"/>
+        </service>
+        <!-- Holds the foreground location context ONLY while an SOS session is
+             active (started/stopped by the Flutter SOS flow) so the one-shot
+             capture can run with the phone locked/screen off. -->
+        <service
+            android:name=".SosLocationService"
+            android:exported="false"
+            android:foregroundServiceType="location"
+            android:stopWithTask="false"/>
+        <!-- Emergency SMS foreground service (short-lived). Started by Flutter
+             via MethodChannel when SOS activates; sends SMS to all guardians
+             independently of MainActivity/Flutter-engine lifecycle. Uses the
+             dataSync type on Android 14+ (6-hour limit, sufficient for the
+             SMS burst with retries). STOP_FOREGROUND_REMOVE + stopSelf when complete. -->
+        <service
+            android:name=".emergency.EmergencySmsService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"
+            android:stopWithTask="false"/>
+        <!-- Holds the foreground location context while a live-location sharing
+             session is active (Phase 3J). START_NOT_STICKY + no boot restore:
+             tracking never silently resumes after process death or reboot. -->
+        <service
+            android:name=".LiveLocationService"
+            android:exported="false"
+            android:foregroundServiceType="location"
+            android:stopWithTask="false"/>
+        <!-- Serverless live location sharing via SMS relay (F-Droid pattern).
+             Sends location updates via SMS every 30s to emergency contacts.
+             Uses LOCATION + DATA_SYNC foreground service types on Android 14+. -->
+        <service
+            android:name=".live_sharing.LiveSharingService"
+            android:exported="false"
+            android:foregroundServiceType="location|dataSync"
+            android:stopWithTask="false"/>
+        <!-- Quick Settings SOS tile (Phase B). Pure trigger: the tap opens the
+             app with guardianher://tilesos and the EXISTING SOS pipeline arms.
+             exported=true is required — SystemUI must be able to bind it; it is
+             protected by the signature BIND_QUICK_SETTINGS_TILE permission. -->
+        <service
+            android:name=".SosTileService"
+            android:label="@string/sos_tile_label"
+            android:icon="@drawable/ic_sos_tile"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE"/>
+            </intent-filter>
+        </service>
+        <!-- User-opt-in device administrator (Settings > Device administrator).
+             While active the system blocks force-stop and uninstall. No
+             policies are declared; we never lock/wipe. -->
+        <receiver
+            android:name=".DeviceAdminReceiver"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin"/>
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED"/>
+            </intent-filter>
+        </receiver>
+        <!-- Restores the Shake SOS detector after reboot, OEM "quick boot" or an
+             app update (Phase 3F). Only starts the service when the user has it
+             enabled; the start is wrapped defensively because some Android 16+
+             builds refuse specialUse FGS launches from BOOT_COMPLETED — in that
+             case the Dart side re-anchors on next app open. Never runs SOS or
+             location logic. -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+                <!-- HTC / some Xiaomi fast-boot variants of QUICKBOOT_POWERON. -->
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
+        <!-- flutter_local_notifications >= 16 no longer merges these receivers:
+             ScheduledNotificationReceiver delivers each check-in reminder alarm;
+             ScheduledNotificationBootReceiver re-registers every scheduled
+             reminder after reboot / app update so reminders survive restarts.
+             Both are exported=false per plugin guidance; system broadcasts are
+             still delivered to unexported receivers and third-party apps cannot
+             spoof protected broadcasts. -->
+        <receiver android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
+            android:exported="false"/>
+        <receiver android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
@@ -39,11 +225,27 @@
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <!-- Package visibility for intent-based features (dialer, SMS, maps).
          Required on API 30+ so url_launcher can resolve these schemes.
-         These are queries, not runtime permissions. -->
+         These are queries, not runtime permissions. NOTE: url_launcher builds
+         ACTION_SENDTO intents for sms:/mailto: URIs, so the SENDTO entries
+         below are what make canLaunchUrl succeed — without them every SMS and
+         email action silently fails on Android 11+. -->
     <queries>
         <intent>
             <action android:name="android.intent.action.DIAL"/>
         </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO"/>
+            <data android:scheme="sms"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO"/>
+            <data android:scheme="smsto"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO"/>
+            <data android:scheme="mailto"/>
+        </intent>
+        <!-- Kept alongside SENDTO: a few SMS apps only expose VIEW. -->
         <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="sms"/>
@@ -64,5 +266,12 @@
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="mailto"/>
         </intent>
+        <!-- WhatsApp chat targeting (Phase 3I): the whatsapp://send deep link
+             only resolves when a handler for the custom scheme is visible.
+             Without these entries canLaunchUrl always returns false on
+             Android 11+ and every WhatsApp action reports unavailable even
+             with WhatsApp installed. -->
+        <package android:name="com.whatsapp"/>
+        <package android:name="com.whatsapp.w4b"/>
     </queries>
 </manifest>

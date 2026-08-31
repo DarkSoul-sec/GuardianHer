@@ -20,7 +20,7 @@ import '../features/location/data/location_manager_location_service.dart';
 import 'permissions/permission_service.dart';
 import 'platform/app_info_service.dart';
 import 'platform/call_service.dart';
-import 'platform/device_admin_service.dart'
+import 'platform/device_admin_service.dart';
 import 'platform/direct_sms_service.dart';
 import 'platform/email_service.dart';
 import 'platform/emergency_sms_bridge.dart';

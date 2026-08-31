@@ -288,6 +288,21 @@ class _SosActiveView extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => _runAction(
+                context,
+                ref,
+                () => ref
+                    .read(sosActionsControllerProvider.notifier)
+                    .sendSosViaWhatsApp(),
+              ),
+              icon: const Icon(Icons.chat_outlined),
+              label: const Text('Send via WhatsApp'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+              ),
+            ),
+            const SizedBox(height: 10),
             FilledButton.icon(
               onPressed: onEnd,
               icon: const Icon(Icons.stop_circle_outlined),

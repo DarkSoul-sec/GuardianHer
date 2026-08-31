@@ -1,17 +1,21 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:telephony/telephony.dart';
 
-import '../../data/datasources/device_admin_datasource.dart';
+import 'package:guardianher/core/platform/shake_sos_service.dart';
+import 'package:guardianher/features/onboarding/data/datasources/device_admin_datasource.dart';
+import 'package:guardianher/core/platform/direct_sms_service.dart';
+import 'package:guardianher/features/shake/application/shake_sos_providers.dart';
 
 enum PermissionStep {
   location,
-  smsPhone,
+  sms,
+  phone,
   notifications,
   overlay,
-  batteryOptimization,
+  shakeSos,
   deviceAdmin,
 }
 
@@ -100,14 +104,36 @@ class PermissionOnboardingState {
 class PermissionOnboardingNotifier extends StateNotifier<PermissionOnboardingState> {
   PermissionOnboardingNotifier({
     required this.deviceAdminDataSource,
-    required Telephony telephony,
-  }) : _telephony = telephony,
-       super(_initialState()) {
+    required this.directSmsService,
+    required this.shakeSosService,
+    required this.ref,
+  }) : super(_initialState()) {
     _checkAllPermissions();
+    _initLifecycleListener();
   }
 
   final DeviceAdminDataSource deviceAdminDataSource;
-  final Telephony _telephony;
+  final DirectSmsService directSmsService;
+  final ShakeSosService shakeSosService;
+  final Ref ref;
+  AppLifecycleListener? _lifecycleListener;
+
+  void _initLifecycleListener() {
+    _lifecycleListener = AppLifecycleListener(
+      onResume: _onAppResume,
+      onDetach: _onAppDetach,
+    );
+  }
+
+  Future<void> _onAppResume() async {
+    // Re-check all permissions when app resumes (e.g., after returning from Settings)
+    await _checkAllPermissions();
+  }
+
+  void _onAppDetach() {
+    _lifecycleListener?.dispose();
+    _lifecycleListener = null;
+  }
 
   static PermissionOnboardingState _initialState() {
     return PermissionOnboardingState(
@@ -115,16 +141,23 @@ class PermissionOnboardingNotifier extends StateNotifier<PermissionOnboardingSta
         PermissionStatusItem(
           step: PermissionStep.location,
           title: 'Location Access',
-          description: 'Live location sharing needs background location even when app is closed',
+          description: 'Required for SOS location capture and live location sharing',
           icon: '📍',
           isCritical: true,
         ),
         PermissionStatusItem(
-          step: PermissionStep.smsPhone,
-          title: 'SMS & Phone',
-          description: 'Auto-send emergency SOS messages to guardians without opening the SMS app',
-          icon: '📱',
+          step: PermissionStep.sms,
+          title: 'SMS Permission',
+          description: 'Required to automatically send emergency SOS messages to guardians',
+          icon: '📩',
           isCritical: true,
+        ),
+        PermissionStatusItem(
+          step: PermissionStep.phone,
+          title: 'Phone Permission',
+          description: 'Allows making emergency calls directly from the app',
+          icon: '📞',
+          isCritical: false,
         ),
         PermissionStatusItem(
           step: PermissionStep.notifications,
@@ -141,10 +174,10 @@ class PermissionOnboardingNotifier extends StateNotifier<PermissionOnboardingSta
           isCritical: false,
         ),
         PermissionStatusItem(
-          step: PermissionStep.batteryOptimization,
-          title: 'Battery Optimization',
-          description: 'Prevents system from killing Shake SOS detector and foreground services',
-          icon: '🔋',
+          step: PermissionStep.shakeSos,
+          title: 'Shake SOS',
+          description: 'Activate emergency SOS by shaking your phone when you need help',
+          icon: '📳',
           isCritical: false,
         ),
         PermissionStatusItem(
@@ -161,12 +194,15 @@ class PermissionOnboardingNotifier extends StateNotifier<PermissionOnboardingSta
   Future<void> _checkAllPermissions() async {
     state = state.copyWith(isLoading: true);
 
+    final shakeSosEnabled = ref.read(shakeSosEnabledProvider);
+
     final results = await Future.wait([
       _checkLocationPermission(),
-      _checkSmsPhonePermission(),
+      _checkSmsPermission(),
+      _checkPhonePermission(),
       _checkNotificationPermission(),
       _checkOverlayPermission(),
-      _checkBatteryOptimizationPermission(),
+      Future.value(shakeSosEnabled),
       _checkDeviceAdminPermission(),
     ]);
 
@@ -183,15 +219,22 @@ class PermissionOnboardingNotifier extends StateNotifier<PermissionOnboardingSta
   }
 
   Future<bool> _checkLocationPermission() async {
+    // The app only requests foreground location (ACCESS_FINE_LOCATION + ACCESS_COARSE_LOCATION).
+    // ACCESS_BACKGROUND_LOCATION is NOT declared in the manifest and is NOT required.
+    // Live location sharing uses a foreground service with location foreground type,
+    // which is the documented alternative to ACCESS_BACKGROUND_LOCATION.
     final whenInUse = await Permission.locationWhenInUse.status;
-    final always = await Permission.locationAlways.status;
-    return whenInUse.isGranted && always.isGranted;
+    return whenInUse.isGranted;
   }
 
-  Future<bool> _checkSmsPhonePermission() async {
+  Future<bool> _checkSmsPermission() async {
     final sms = await Permission.sms.status;
+    return sms.isGranted;
+  }
+
+  Future<bool> _checkPhonePermission() async {
     final phone = await Permission.phone.status;
-    return sms.isGranted && phone.isGranted;
+    return phone.isGranted;
   }
 
   Future<bool> _checkNotificationPermission() async {
@@ -202,11 +245,6 @@ class PermissionOnboardingNotifier extends StateNotifier<PermissionOnboardingSta
   Future<bool> _checkOverlayPermission() async {
     final overlay = await Permission.systemAlertWindow.status;
     return overlay.isGranted;
-  }
-
-  Future<bool> _checkBatteryOptimizationPermission() async {
-    final battery = await Permission.ignoreBatteryOptimizations.status;
-    return battery.isGranted;
   }
 
   Future<bool> _checkDeviceAdminPermission() async {
@@ -232,8 +270,11 @@ class PermissionOnboardingNotifier extends StateNotifier<PermissionOnboardingSta
         case PermissionStep.location:
           granted = await _requestLocationPermission();
           break;
-        case PermissionStep.smsPhone:
-          granted = await _requestSmsPhonePermission();
+        case PermissionStep.sms:
+          granted = await _requestSmsPermission();
+          break;
+        case PermissionStep.phone:
+          granted = await _requestPhonePermission();
           break;
         case PermissionStep.notifications:
           granted = await _requestNotificationPermission();
@@ -241,8 +282,8 @@ class PermissionOnboardingNotifier extends StateNotifier<PermissionOnboardingSta
         case PermissionStep.overlay:
           granted = await _requestOverlayPermission();
           break;
-        case PermissionStep.batteryOptimization:
-          granted = await _requestBatteryOptimizationPermission();
+        case PermissionStep.shakeSos:
+          granted = await _requestShakeSosPermission();
           break;
         case PermissionStep.deviceAdmin:
           granted = await _requestDeviceAdminPermission();
@@ -275,11 +316,16 @@ class PermissionOnboardingNotifier extends StateNotifier<PermissionOnboardingSta
     return alwaysStatus.isGranted;
   }
 
-  Future<bool> _requestSmsPhonePermission() async {
+  Future<bool> _requestSmsPermission() async {
     var smsStatus = await Permission.sms.request();
+    // Check SIM readiness via native channel
+    final simReady = await directSmsService.checkSimReady();
+    return smsStatus.isGranted && simReady;
+  }
+
+  Future<bool> _requestPhonePermission() async {
     var phoneStatus = await Permission.phone.request();
-    final telephonyPerms = await _telephony.requestPhoneAndSmsPermissions;
-    return smsStatus.isGranted && phoneStatus.isGranted && telephonyPerms == true;
+    return phoneStatus.isGranted;
   }
 
   Future<bool> _requestNotificationPermission() async {
@@ -288,13 +334,23 @@ class PermissionOnboardingNotifier extends StateNotifier<PermissionOnboardingSta
   }
 
   Future<bool> _requestOverlayPermission() async {
-    final status = await Permission.systemAlertWindow.request();
-    return status.isGranted;
+    if (isShakeSosSupported) {
+      await shakeSosService.openOverlaySettings();
+      // Re-check after opening settings
+      await Future.delayed(const Duration(milliseconds: 500));
+      return await _checkOverlayPermission();
+    }
+    return false;
   }
 
-  Future<bool> _requestBatteryOptimizationPermission() async {
-    final status = await Permission.ignoreBatteryOptimizations.request();
-    return status.isGranted;
+  Future<bool> _requestShakeSosPermission() async {
+    if (isShakeSosSupported) {
+      await ref.read(shakeSosEnabledProvider.notifier).setEnabled(true);
+      // Re-check after enabling
+      await Future.delayed(const Duration(milliseconds: 500));
+      return ref.read(shakeSosEnabledProvider);
+    }
+    return false;
   }
 
   Future<bool> _requestDeviceAdminPermission() async {
@@ -306,17 +362,22 @@ class PermissionOnboardingNotifier extends StateNotifier<PermissionOnboardingSta
       case PermissionStep.location:
         await openAppSettings();
         break;
-      case PermissionStep.smsPhone:
+      case PermissionStep.sms:
+        await openAppSettings();
+        break;
+      case PermissionStep.phone:
         await openAppSettings();
         break;
       case PermissionStep.notifications:
         await openAppSettings();
         break;
       case PermissionStep.overlay:
-        await Permission.systemAlertWindow.request();
+        if (isShakeSosSupported) {
+          await shakeSosService.openOverlaySettings();
+        }
         break;
-      case PermissionStep.batteryOptimization:
-        await Permission.ignoreBatteryOptimizations.request();
+      case PermissionStep.shakeSos:
+        // Shake SOS is managed in-app, not via system settings
         break;
       case PermissionStep.deviceAdmin:
         // Device admin settings opened via the channel
