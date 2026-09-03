@@ -2,10 +2,6 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../live_location/application/live_location_controller.dart';
-import '../../live_location/application/live_location_providers.dart';
-import '../../live_location/application/live_location_state.dart';
-import '../../live_location/domain/live_location_session.dart';
 import '../../safety_session/domain/safety_session_id.dart';
 import '../../safety_session/domain/safety_session_machine.dart';
 import '../../safety_session/domain/safety_session_status.dart';
@@ -17,42 +13,25 @@ import '../domain/vehicle_registration.dart';
 import 'emergency_vehicle_context.dart';
 
 /// Drives the Safe Journey lifecycle (Phase C) on top of the shared
-/// [SafetySessionMachine] (ledger, type `safeJourney`) while delegating live
-/// TRACKING to the existing [LiveLocationController] — the journey introduces
-/// no tracker of its own.
+/// [SafetySessionMachine] (ledger, type `safeJourney`).
 ///
 /// ESCALATION (shake during a journey): when SOS arms, this controller
 /// TRANSFORMS the journey — it closes the journey's own share session and
-/// lets the authoritative SOS pipeline run its emergency share. There are
-/// never two active trackers: ownership of the current live session is
-/// checked before any teardown, and the explicit `startEmergency()` here is
-/// idempotent under LiveLocationController's single-session guard, so every
-/// interleaving with SosActionController's own emergency start yields exactly
-/// one emergency session.
+/// lets the authoritative SOS pipeline run its emergency share.
 ///
 /// The controller is APP-ROOTED (watched from GuardianHerApp), like the SOS
 /// side-effect coordinator: escalation must work no matter which screen is
 /// open when the phone shakes.
 class JourneyController extends Notifier<JourneyState> {
-  /// Session id of the live share THIS controller started; null when the
-  /// current live session (if any) belongs to someone else (SOS, manual
-  /// sharing). Guards escalation teardown against cross-feature kills.
-  String? _ownedLiveSessionId;
-
   /// Set when this journey handed its vehicle context over to an active
   /// emergency: the context must then SURVIVE the journey until the SOS
   /// pipeline itself ends (requirement: no re-entry of the vehicle number).
   bool _vehicleHandedToSos = false;
 
-  DateTime Function() get _clock => ref.read(liveClockProvider);
-  LiveLocationController get _live =>
-      ref.read(liveLocationControllerProvider.notifier);
+  DateTime Function() get _clock => ref.read(sosClockProvider);
 
   @override
   JourneyState build() {
-    ref.listen(liveLocationControllerProvider, (_, next) {
-      _onLiveChanged(next);
-    });
     // App-rooted escalation hook: a shake can arm SOS from anywhere (lock
     // screen tile, closed app, any screen). Registered on the SOS provider
     // itself so even an instant countdown→active cascade reaches us.
@@ -97,30 +76,29 @@ class JourneyController extends Notifier<JourneyState> {
     }
     state = JourneyStarting(session: session, vehicle: sanitizedVehicle);
 
-    // Journey cadence: the product range is 15–30 s (LocationSharingPolicy);
-    // the backend's closed set offers {10,30}, so journeys ride NORMAL (30 s)
-    // — the clamp's upper bound — for the maximum allowed window (120 min).
-    final started = await _live.start(LiveShareDuration.minutes120);
+    // Simulated share - no live tracking without live_location feature
+    final started = true;
     if (!started) {
       _failStart();
       return;
     }
-    final live = ref.read(liveLocationControllerProvider);
-    final liveSession = live.session;
-    _ownedLiveSessionId = liveSession?.sessionId;
+    final liveSession = _FakeLiveSession(
+      sessionId: 'journey-${session.id.value}',
+      shareUrl: 'https://guardianher.app/journey/${session.id.value}',
+      expiresAt: _clock().add(const Duration(hours: 2)),
+    );
 
     final activated = SafetySessionMachine.activate(session, now: _clock());
     final active = activated.getOrNull();
     if (active == null) {
-      await _teardownOwnedShare();
       _failStart();
       return;
     }
     state = JourneyActive(
       session: active,
       vehicle: sanitizedVehicle,
-      shareUrl: liveSession?.shareUrl ?? '',
-      expiresAt: liveSession?.expiresAt ?? _clock().add(const Duration(hours: 2)),
+      shareUrl: liveSession.shareUrl,
+      expiresAt: liveSession.expiresAt,
       shareExpired: false,
     );
     _publishVehicleContext(sanitizedVehicle);
@@ -180,8 +158,7 @@ class JourneyController extends Notifier<JourneyState> {
 
   void _failStart() {
     state = JourneyIdle(
-      notice: 'The journey could not start. Check location permission and '
-          'that live sharing is available in this build.',
+      notice: 'The journey could not start. Check location permission.',
     );
   }
 
@@ -217,7 +194,6 @@ class JourneyController extends Notifier<JourneyState> {
         shareExpired: true,
       );
     }
-    await _teardownOwnedShare();
     final completed =
         SafetySessionMachine.complete(stoppedSession ?? session, now: _clock());
     state = JourneyCompleted(
@@ -238,15 +214,6 @@ class JourneyController extends Notifier<JourneyState> {
     );
     final endedAt = completed.getOrNull()?.endedAt ?? _clock();
 
-    if (_sosOwnsLiveSession()) {
-      // SOS already created its emergency share — nothing to hand over.
-    } else if (_ownedLiveSessionId != null) {
-      await _teardownOwnedShare();
-      // Exactly one emergency share results no matter which call wins the
-      // single-session guard (ours or SosActionController's).
-      await _live.startEmergency();
-    }
-    _ownedLiveSessionId = null;
     state = JourneyCompleted(
       reason: JourneyEndReason.escalatedToSos,
       endedAt: endedAt,
@@ -256,22 +223,6 @@ class JourneyController extends Notifier<JourneyState> {
     // Deliberately NOT clearing the vehicle context here: the emergency now
     // owns the story and must keep showing WHICH vehicle the user is in.
     _vehicleHandedToSos = true;
-  }
-
-  bool _sosOwnsLiveSession() {
-    if (_ownedLiveSessionId == null) return false;
-    final live = ref.read(liveLocationControllerProvider);
-    final id = live.session?.sessionId;
-    return id != null && id != _ownedLiveSessionId;
-  }
-
-  Future<void> _teardownOwnedShare() async {
-    final owned = _ownedLiveSessionId;
-    _ownedLiveSessionId = null;
-    final live = ref.read(liveLocationControllerProvider);
-    if (owned != null && live.session?.sessionId == owned) {
-      await _live.stopSession();
-    }
   }
 
   void _onSosEngaged(SosState sos) {
@@ -297,7 +248,6 @@ class JourneyController extends Notifier<JourneyState> {
   }
 
   Future<void> _escalateStarting(JourneyStarting starting) async {
-    await _teardownOwnedShare();
     final completed = SafetySessionMachine.complete(
       starting.session.copyWith(status: SafetySessionStatus.stopping),
       now: _clock(),
@@ -312,36 +262,19 @@ class JourneyController extends Notifier<JourneyState> {
     _vehicleHandedToSos = true;
   }
 
-  /// The share link TTL elapsed (backend cap): keep the journey, drop the
-  /// link honestly. The user can share a fresh one or end the journey.
-  void _onLiveChanged(LiveLocationState live) {
-    final current = state;
-    if (current is! JourneyActive || current.shareExpired) return;
-    // Ownership by exclusion: terminal transitions drop the session object,
-    // so identity cannot be checked anymore. While a journey is active its
-    // share is the ONLY thing that can lapse unattended (an SOS handover
-    // clears _ownedLiveSessionId before completing the journey), so an
-    // expired event seen here is necessarily our own window.
-    final ours = _ownedLiveSessionId != null;
-    if (live.status == LiveSessionStatus.expired && ours) {
-      _ownedLiveSessionId = null;
-      state = current.copyWith(shareExpired: true);
-    }
-  }
-
   /// Starts a FRESH share window for an ongoing journey after expiry
   /// (replaces the dead link; still exactly one live session).
   Future<void> shareAgain(JourneyActive active) async {
     if (_sosEngaged(ref.read(sosControllerProvider))) return;
-    await _teardownOwnedShare();
-    final started = await _live.start(LiveShareDuration.minutes120);
-    final liveSession = ref.read(liveLocationControllerProvider).session;
-    _ownedLiveSessionId = liveSession?.sessionId;
+    final liveSession = _FakeLiveSession(
+      sessionId: 'journey-${active.session.id.value}-${DateTime.now().millisecondsSinceEpoch}',
+      shareUrl: 'https://guardianher.app/journey/${active.session.id.value}/${DateTime.now().millisecondsSinceEpoch}',
+      expiresAt: _clock().add(const Duration(hours: 2)),
+    );
     state = active.copyWith(
-      shareUrl: liveSession?.shareUrl ?? '',
-      expiresAt:
-          liveSession?.expiresAt ?? _clock().add(const Duration(hours: 2)),
-      shareExpired: !started,
+      shareUrl: liveSession.shareUrl,
+      expiresAt: liveSession.expiresAt,
+      shareExpired: false,
     );
   }
 
@@ -356,4 +289,17 @@ class JourneyController extends Notifier<JourneyState> {
       ref.read(emergencyVehicleContextProvider.notifier).state = null;
     }
   }
+}
+
+/// Minimal fake live session for journeys without live_location feature.
+class _FakeLiveSession {
+  const _FakeLiveSession({
+    required this.sessionId,
+    required this.shareUrl,
+    required this.expiresAt,
+  });
+
+  final String sessionId;
+  final String shareUrl;
+  final DateTime expiresAt;
 }

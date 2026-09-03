@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers.dart';
-import '../../live_location/application/live_location_providers.dart';
 import '../../location/application/location_providers.dart';
 import '../../location/application/location_state.dart';
 import '../../location/domain/location_share_message.dart';
@@ -50,9 +49,7 @@ final sosSmsBodyProvider = Provider<String>(
 
 /// Message body for the user-confirmed SOS message: the generic text plus a
 /// shareable "current location" link when a fix was captured during the
-/// session, plus the emergency LIVE-LOCATION URL when that session came up
-/// (Phase 3J §19). The URL is the live-tracking mechanism; the SMS/WhatsApp
-/// message itself is not. Nothing is ever sent automatically; the composer is
+/// session. Nothing is ever sent automatically; the composer is
 /// opened for the user to review.
 final sosMessageBodyProvider = Provider<String>((ref) {
   final base = ref.read(sosSmsBodyProvider);
@@ -64,16 +61,6 @@ final sosMessageBodyProvider = Provider<String>((ref) {
   final buffer = StringBuffer(base);
   if (point != null) {
     buffer.write('\nMy location: ${buildMapsShareUrl(point)}');
-  }
-
-  final live = ref.read(liveLocationControllerProvider);
-  final session = live.session;
-  if (live.isActive && session != null && session.shareUrl.isNotEmpty) {
-    final expiresLocal = session.expiresAt.toLocal();
-    final hh = expiresLocal.hour.toString().padLeft(2, '0');
-    final mm = expiresLocal.minute.toString().padLeft(2, '0');
-    buffer.write('\nLive location: ${session.shareUrl}');
-    buffer.write('\nThis link expires at $hh:$mm.');
   }
   return buffer.toString();
 });

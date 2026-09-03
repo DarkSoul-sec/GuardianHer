@@ -6,7 +6,6 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/platform/call_service.dart';
 import '../../../core/platform/direct_sms_service.dart';
-import '../../../core/platform/live_sharing_service.dart';
 import '../../../core/platform/location_service.dart';
 import '../../../core/platform/notification_service.dart';
 import '../../../core/platform/shake_sos_service.dart';
@@ -18,7 +17,6 @@ import '../../../core/result/result.dart';
 import '../../contacts/application/contacts_providers.dart';
 import '../../contacts/domain/phone_number.dart';
 import '../../contacts/domain/trusted_contact.dart';
-import '../../live_location/application/live_location_providers.dart';
 import '../../location/application/location_providers.dart';
 import '../../location/application/location_state.dart';
 import '../../location/domain/location_share_message.dart';
@@ -61,7 +59,6 @@ class SosActionController extends Notifier<SosActionsState> {
   SmsService get _sms => ref.read(smsServiceProvider);
   DirectSmsService get _directSms => ref.read(directSmsServiceProvider);
   WhatsAppDataSource get _whatsAppDataSource => ref.read(whatsAppDataSourceProvider);
-  LiveSharingService get _liveSharing => ref.read(liveSharingServiceProvider);
   ContactsRepository get _contactsRepository =>
       ref.read(contactsRepositoryProvider);
   ShakeSosService get _shake => ref.read(shakeSosServiceProvider);
@@ -190,27 +187,14 @@ class SosActionController extends Notifier<SosActionsState> {
     );
   }
 
-Future<void> _activateEffects() async {
+  Future<void> _activateEffects() async {
     // Best-effort current-location capture. It never blocks SOS activation
     // and can never cancel an active SOS: the flow resolves to "captured" or
     // "location unavailable" while SOS stays ACTIVE. Runs regardless of the
     // notification outcome below.
     unawaited(_captureLocationWithContext());
 
-    // Emergency live-location session (Phase 3J §18), fire-and-forget:
-    // SHAKE → SOS ACTIVE → capture → live session starts INDEPENDENTLY.
-    // Any failure (offline, unconfigured build, permission) leaves SOS and
-    // its message flow untouched — the share URL simply never appears.
-    unawaited(_startEmergencyLiveLocation());
-
-    // Serverless live sharing via SMS relay (foreground service).
-    // Sends location updates every 30s to all trusted contacts.
-    unawaited(_startLiveSharing());
-
     await _startAlert();
-
-    // NO automatic WhatsApp — WhatsApp is user-mediated.
-    // Users can trigger it from the SOS screen when they want to send via WhatsApp.
 
     final permission = await _notification.isPermissionGranted();
     final granted = permission is Ok<bool> && permission.value;
@@ -287,251 +271,6 @@ Future<void> _activateEffects() async {
     await _ensureLocationEnabled();
     await ref.read(locationControllerProvider.notifier).captureLocation();
     _scheduleLocationRetry();
-  }
-
-  /// Starts an emergency live-location session for this SOS (Phase 3J §18).
-  ///
-  /// The controller guarantees no-throw and no-blocking; SOS stays fully
-  /// functional when live sharing cannot start. When it DOES start, the URL
-  /// becomes available to `sosMessageBodyProvider` through its state.
-  Future<void> _startEmergencyLiveLocation() async {
-    try {
-      await ref.read(liveLocationControllerProvider.notifier).startEmergency();
-    } catch (_) {
-      // Belt and braces: startEmergency already swallows everything.
-    }
-  }
-
-  /// Sends emergency WhatsApp messages to all trusted contacts.
-  ///
-  /// Opens pre-filled WhatsApp chats for each contact. User must tap "Send"
-  /// in WhatsApp - true auto-send is not possible on-device without WhatsApp
-  /// Business API (cloud-based). Runs fire-and-forget; failures are logged but
-  /// never block SOS activation. Falls back to SMS composer if WhatsApp unavailable.
-  Future<void> _sendEmergencyWhatsAppToContacts() async {
-    try {
-      final contactsResult = await _contactsRepository.loadContacts();
-      final contacts = contactsResult.fold(
-        (list) => list,
-        (_) => <TrustedContact>[],
-      );
-
-      if (contacts.isEmpty) {
-        debugPrint('[SOS] No trusted contacts saved, skipping WhatsApp');
-        return;
-      }
-
-      // Only send to contacts marked as emergency contacts
-      final emergencyContacts = contacts
-          .where((c) => c.isEmergencyContact)
-          .toList();
-
-      if (emergencyContacts.isEmpty) {
-        debugPrint('[SOS] No emergency contacts configured, skipping WhatsApp');
-        return;
-      }
-
-      String? locationUrl;
-      String? liveLocationUrl;
-      int? batteryPercentage;
-
-      // Get location URL from location controller
-      final locationState = ref.read(locationControllerProvider);
-      if (locationState.status == LocationStatus.captured &&
-          locationState.point != null) {
-        locationUrl = buildMapsShareUrl(locationState.point!);
-      }
-
-      // Get live location URL if active
-      final liveLocationState = ref.read(liveLocationControllerProvider);
-      if (liveLocationState.isActive && liveLocationState.session != null) {
-        liveLocationUrl = liveLocationState.session!.shareUrl;
-      }
-
-      // Get battery percentage
-      try {
-        batteryPercentage = await _directSms.getBatteryPercentage();
-      } catch (_) {
-        // Battery read is best-effort
-      }
-
-      // Build emergency message
-      final message = _buildEmergencyMessage(
-        locationUrl: locationUrl,
-        liveLocationUrl: liveLocationUrl,
-        batteryPercentage: batteryPercentage,
-      );
-
-      // Open WhatsApp chat for each emergency contact
-      final numbers = emergencyContacts
-          .map((c) => PhoneNumber.normalize(c.phoneNumber))
-          .where(PhoneNumber.isValid)
-          .toList();
-
-      final successCount = await _whatsAppDataSource.openWhatsAppForAllContacts(
-        numbers: numbers,
-        message: message,
-      );
-
-      debugPrint('[SOS] WhatsApp opened for $successCount/${numbers.length} emergency contacts');
-
-      // Fallback to SMS composer for any failed contacts
-      if (successCount < numbers.length) {
-        for (final contact in emergencyContacts) {
-          final normalizedNumber = PhoneNumber.normalize(contact.phoneNumber);
-          if (PhoneNumber.isValid(normalizedNumber)) {
-            // Check if this contact's WhatsApp was opened (we can't easily track per-contact)
-            // So we'll just open SMS as fallback for all if any failed
-            debugPrint('[SOS] Fallback to SMS composer for ${contact.name}');
-            await _sms.openComposer(
-              phoneNumber: normalizedNumber,
-              body: message,
-            );
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('[SOS] WhatsApp error: $e');
-      // Fallback to SMS composer for emergency contacts
-      try {
-        final contactsResult = await _contactsRepository.loadContacts();
-        final contacts = contactsResult.fold(
-          (list) => list,
-          (_) => <TrustedContact>[],
-        );
-        final emergencyContacts = contacts
-            .where((c) => c.isEmergencyContact)
-            .toList();
-        final message = _buildEmergencyMessage(
-          locationUrl: null,
-          liveLocationUrl: null,
-          batteryPercentage: null,
-        );
-        for (final contact in emergencyContacts) {
-          final normalizedNumber = PhoneNumber.normalize(contact.phoneNumber);
-          if (PhoneNumber.isValid(normalizedNumber)) {
-            await _sms.openComposer(
-              phoneNumber: normalizedNumber,
-              body: message,
-            );
-          }
-        }
-      } catch (_) {
-        // Best-effort fallback
-      }
-    }
-  }
-
-  /// Starts serverless live sharing via SMS relay (foreground service).
-  ///
-  /// Sends periodic location updates to all trusted contacts via SMS.
-  /// Runs independently of Flutter engine — survives app backgrounding.
-  Future<void> _startLiveSharing() async {
-    try {
-      // Request SMS permission first
-      final smsStatus = await Permission.sms.request();
-      if (!smsStatus.isGranted) {
-        debugPrint('[SOS] SMS permission not granted, skipping live sharing');
-        return;
-      }
-
-      final contactsResult = await _contactsRepository.loadContacts();
-      final contacts = contactsResult.fold(
-        (list) => list,
-        (_) => <TrustedContact>[],
-      );
-
-      if (contacts.isEmpty) {
-        debugPrint('[SOS] No trusted contacts saved, skipping live sharing');
-        return;
-      }
-
-      // Only send to contacts marked as emergency contacts
-      final emergencyContacts = contacts
-          .where((c) => c.isEmergencyContact)
-          .toList();
-
-      if (emergencyContacts.isEmpty) {
-        debugPrint('[SOS] No emergency contacts configured, skipping live sharing');
-        return;
-      }
-
-      final numbers = emergencyContacts
-          .map((c) => PhoneNumber.normalize(c.phoneNumber))
-          .where(PhoneNumber.isValid)
-          .toList();
-
-      if (numbers.isEmpty) {
-        debugPrint('[SOS] No valid phone numbers for live sharing');
-        return;
-      }
-
-      final started = await _liveSharing.start(
-        contacts: numbers,
-        intervalSeconds: 30,
-      );
-
-      if (started) {
-        debugPrint('[SOS] Live sharing started to ${numbers.length} emergency contacts');
-      } else {
-        debugPrint('[SOS] Live sharing failed to start (permissions?)');
-      }
-    } catch (e) {
-      debugPrint('[SOS] Live sharing error: $e');
-    }
-  }
-
-  /// Stops the live sharing foreground service.
-  Future<void> _stopLiveSharing() async {
-    try {
-      await _liveSharing.stop();
-      debugPrint('[SOS] Live sharing stopped');
-    } catch (e) {
-      debugPrint('[SOS] Live sharing stop error: $e');
-    }
-  }
-
-  /// Builds the emergency SMS message body.
-  String _buildEmergencyMessage({
-    String? locationUrl,
-    String? liveLocationUrl,
-    int? batteryPercentage,
-  }) {
-    final buffer = StringBuffer();
-    buffer.writeln('🚨 GUARDIAN HER — SOS ALERT');
-    buffer.writeln('');
-    buffer.writeln('An emergency SOS has been triggered.');
-    buffer.writeln('');
-
-    if (locationUrl != null) {
-      buffer.writeln('📍 Current Location:');
-      buffer.writeln(locationUrl);
-      buffer.writeln('');
-    } else {
-      buffer.writeln('📍 Location currently unavailable.');
-      buffer.writeln('Guardian HER is attempting to acquire the location.');
-      buffer.writeln('');
-    }
-
-    if (liveLocationUrl != null) {
-      buffer.writeln('🔴 Live Location:');
-      buffer.writeln(liveLocationUrl);
-      buffer.writeln('');
-    }
-
-    if (batteryPercentage != null) {
-      buffer.writeln('🔋 Battery: $batteryPercentage%');
-      buffer.writeln('');
-    }
-
-    final now = DateTime.now();
-    final hh = now.hour.toString().padLeft(2, '0');
-    final mm = now.minute.toString().padLeft(2, '0');
-    buffer.writeln('🕐 Time: $hh:$mm');
-    buffer.writeln('');
-    buffer.writeln('Please contact the user immediately.');
-
-    return buffer.toString();
   }
 
   /// Turns location services on when SOS needs them and they are off.
@@ -626,7 +365,6 @@ Future<void> _activateEffects() async {
   Future<void> _cancellingEffects() async {
     await _stopAlert();
     await _stopLocationContext();
-    await _stopLiveSharing();
     state = state.copyWith(vibrationStatus: SosVibrationStatus.idle);
     await _notification.showSosStopping();
     state = state.copyWith(
@@ -638,7 +376,6 @@ Future<void> _activateEffects() async {
 
   Future<void> _completedEffects() async {
     await _notification.cancelSos();
-    await _stopLiveSharing();
     state = state.copyWith(notificationStatus: SosNotificationStatus.unknown);
   }
 
@@ -646,7 +383,6 @@ Future<void> _activateEffects() async {
     await _notification.cancelSos();
     await _stopAlert();
     await _stopLocationContext();
-    await _stopLiveSharing();
     _requestedPermission = false;
     _sessionSnapshotActive = false;
     await _clearSessionSnapshot();
@@ -734,7 +470,6 @@ Future<void> _activateEffects() async {
           }
 
           String? locationUrl;
-          String? liveLocationUrl;
           int? batteryPercentage;
 
           // Get location URL from location controller
@@ -742,12 +477,6 @@ Future<void> _activateEffects() async {
           if (locationState.status == LocationStatus.captured &&
               locationState.point != null) {
             locationUrl = buildMapsShareUrl(locationState.point!);
-          }
-
-          // Get live location URL if active
-          final liveLocationState = ref.read(liveLocationControllerProvider);
-          if (liveLocationState.isActive && liveLocationState.session != null) {
-            liveLocationUrl = liveLocationState.session!.shareUrl;
           }
 
           // Get battery percentage
@@ -760,7 +489,6 @@ Future<void> _activateEffects() async {
           // Build emergency message
           final message = _buildEmergencyMessage(
             locationUrl: locationUrl,
-            liveLocationUrl: liveLocationUrl,
             batteryPercentage: batteryPercentage,
           );
 
@@ -793,6 +521,42 @@ Future<void> _activateEffects() async {
         }
       },
     );
+  }
+
+  /// Builds the emergency SMS/WhatsApp message body.
+  String _buildEmergencyMessage({
+    String? locationUrl,
+    int? batteryPercentage,
+  }) {
+    final buffer = StringBuffer();
+    buffer.writeln('🚨 GUARDIAN HER — SOS ALERT');
+    buffer.writeln('');
+    buffer.writeln('An emergency SOS has been triggered.');
+    buffer.writeln('');
+
+    if (locationUrl != null) {
+      buffer.writeln('📍 Current Location:');
+      buffer.writeln(locationUrl);
+      buffer.writeln('');
+    } else {
+      buffer.writeln('📍 Location currently unavailable.');
+      buffer.writeln('Guardian HER is attempting to acquire the location.');
+      buffer.writeln('');
+    }
+
+    if (batteryPercentage != null) {
+      buffer.writeln('🔋 Battery: $batteryPercentage%');
+      buffer.writeln('');
+    }
+
+    final now = DateTime.now();
+    final hh = now.hour.toString().padLeft(2, '0');
+    final mm = now.minute.toString().padLeft(2, '0');
+    buffer.writeln('🕐 Time: $hh:$mm');
+    buffer.writeln('');
+    buffer.writeln('Please contact the user immediately.');
+
+    return buffer.toString();
   }
 
   Future<Result<SosActionOutcome>> _callAction(

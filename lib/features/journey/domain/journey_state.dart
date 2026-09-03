@@ -17,8 +17,7 @@ enum JourneyEndReason {
 ///
 /// Mirrors the SOS phase shapes: sealed states the UI switches over. The
 /// ledger underneath is a [SafetySession] (type `safeJourney`) driven by the
-/// shared [SafetySessionMachine]; live TRACKING is delegated to the existing
-/// LiveLocation machinery (one tracker at a time, always).
+/// shared [SafetySessionMachine].
 sealed class JourneyState {
   const JourneyState();
 

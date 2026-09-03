@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:guardianher/core/permissions/permission_service.dart';
+import 'package:guardianher/core/providers.dart';
 import 'package:guardianher/features/journey/application/emergency_vehicle_context.dart';
 import 'package:guardianher/features/journey/application/journey_providers.dart';
 import 'package:guardianher/features/journey/domain/journey_state.dart';
 import 'package:guardianher/features/journey/presentation/journey_screen.dart';
-import 'package:guardianher/features/live_location/application/live_location_providers.dart';
 
 import '../../helpers/fakes.dart';
 import '../sos/sos_test_fakes.dart';
 import 'journey_controller_test.dart';
 
-/// Widget tests must not end with pending live-upload/TTL timers: end any
+/// Widget tests must not end with pending timers: end any
 /// active session and stop whatever share is still running.
 Future<void> tearJourneyDown(JourneyFixture f, WidgetTester tester) async {
   final state = f.state;
@@ -20,13 +22,15 @@ Future<void> tearJourneyDown(JourneyFixture f, WidgetTester tester) async {
     await f.container.read(journeyControllerProvider.notifier).endJourney();
     await tester.pump(const Duration(milliseconds: 50));
   }
-  await f.container
-      .read(liveLocationControllerProvider.notifier)
-      .stopSession();
-  await tester.pump(const Duration(milliseconds: 50));
 }
 
 void main() {
+  setUpAll(() {
+    SharedPreferences.setMockInitialValues({
+      'onboarding_done': true,
+    });
+  });
+
   Widget harness(ProviderContainer container) {
     return UncontrolledProviderScope(
       container: container,
@@ -106,6 +110,7 @@ void main() {
     );
     await tester.pumpWidget(harness(f.container));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
 
     await tester.tap(find.byKey(const Key('journey-end')));
     await tester.pump();
@@ -130,10 +135,7 @@ void main() {
       find.byKey(const Key('journey-vehicle-registration')),
     );
     expect(registrationField.controller!.text, isEmpty);
-    await f.container
-        .read(liveLocationControllerProvider.notifier)
-        .stopSession();
-    await tester.pump(const Duration(milliseconds: 50));
+    await tearJourneyDown(f, tester);
   });
 
   testWidgets('an escalated journey explains the handover, not success',
@@ -166,19 +168,19 @@ void main() {
 
   testWidgets('a refused start shows the honest notice on the form',
       (tester) async {
-    final api = FakeLiveLocationApiClient();
-    final sos = createSosContainer(extraOverrides: [
-      liveLocationApiClientProvider.overrideWithValue(api),
-    ]);
-    addTearDown(sos.container.dispose);
-    sos.container.read(journeyControllerProvider);
-    await tester.pumpWidget(harness(sos.container));
+    final f = JourneyFixture();
+    addTearDown(f.container.dispose);
+    // Set up SOS active to trigger the refused start
+    f.container.read(journeyControllerProvider);
+    f.armSos();
+    await tester.pumpWidget(harness(f.container));
+    await tester.pump();
 
     await tester.tap(find.byKey(const Key('journey-start')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.textContaining('could not start'), findsOneWidget);
-    expect(sos.container.read(journeyControllerProvider), isA<JourneyIdle>());
+    expect(find.textContaining('An emergency is active'), findsOneWidget);
+    expect(f.state, isA<JourneyIdle>());
   });
 }

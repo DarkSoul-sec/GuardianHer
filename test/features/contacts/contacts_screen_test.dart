@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:guardianher/app/app.dart';
+import 'package:guardianher/core/error/failures.dart';
+import 'package:guardianher/core/permissions/permission_service.dart';
 import 'package:guardianher/core/providers.dart';
 import 'package:guardianher/features/contacts/application/contacts_providers.dart';
+import 'package:guardianher/features/contacts/application/contacts_state.dart';
 import 'package:guardianher/features/contacts/data/contacts_repository_impl.dart';
 import 'package:guardianher/features/contacts/presentation/contact_form_screen.dart';
 import 'package:guardianher/features/contacts/presentation/contacts_screen.dart';
@@ -20,11 +24,16 @@ Widget _harness(ProviderContainer container) {
 }
 
 ProviderContainer _container({FakeSecureStorageService? storage}) {
+  final permissionService = FakePermissionService()
+    ..statuses[AppPermission.location] = PermissionStatus.granted
+    ..statuses[AppPermission.sms] = PermissionStatus.granted
+    ..statuses[AppPermission.notifications] = PermissionStatus.granted;
   return createContainer(
     overrides: [
       secureStorageServiceProvider.overrideWithValue(
         storage ?? FakeSecureStorageService(),
       ),
+      permissionServiceProvider.overrideWithValue(permissionService),
     ],
   );
 }
@@ -65,6 +74,12 @@ String _masked(String phone) {
 }
 
 void main() {
+  setUpAll(() {
+    SharedPreferences.setMockInitialValues({
+      'onboarding_done': true,
+    });
+  });
+
   group('ContactsScreen', () {
     testWidgets('shows an empty state when no contacts exist', (tester) async {
       final container = _container();
@@ -275,8 +290,12 @@ void main() {
     testWidgets('shows a loading indicator while loading', (tester) async {
       final container = createContainer(
         overrides: [
-          contactsControllerProvider.overrideWith(
-            LoadingContactsController.new,
+          contactsControllerProvider.overrideWith(LoadingContactsController.new),
+          permissionServiceProvider.overrideWithValue(
+            FakePermissionService()
+              ..statuses[AppPermission.location] = PermissionStatus.granted
+              ..statuses[AppPermission.sms] = PermissionStatus.granted
+              ..statuses[AppPermission.notifications] = PermissionStatus.granted,
           ),
         ],
       );
@@ -290,6 +309,12 @@ void main() {
       final container = createContainer(
         overrides: [
           contactsControllerProvider.overrideWith(ErrorContactsController.new),
+          permissionServiceProvider.overrideWithValue(
+            FakePermissionService()
+              ..statuses[AppPermission.location] = PermissionStatus.granted
+              ..statuses[AppPermission.sms] = PermissionStatus.granted
+              ..statuses[AppPermission.notifications] = PermissionStatus.granted,
+          ),
         ],
       );
       addTearDown(container.dispose);

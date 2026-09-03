@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers.dart';
 import '../../../core/result/result.dart';
 import '../../contacts/application/contacts_providers.dart';
-import '../../live_location/application/live_location_providers.dart';
 import '../../location/application/location_providers.dart';
 import '../../safety_recorder/application/safety_recorder_controller.dart';
 
@@ -32,7 +31,6 @@ class PrivacyController extends Notifier<bool> {
     // data remains observable if the user stays in the app after deletion.
     ref.invalidate(locationControllerProvider);
     ref.invalidate(contactsControllerProvider);
-    ref.invalidate(liveLocationControllerProvider);
     state = false;
     return result;
   }

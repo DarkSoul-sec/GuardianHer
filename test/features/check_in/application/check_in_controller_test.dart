@@ -29,6 +29,7 @@ class FixedContactsRepository implements ContactsRepository {
     required String name,
     required String phoneNumber,
     String? email,
+    bool isEmergencyContact = true,
   }) async =>
       const Err(UnexpectedFailure());
 
@@ -48,6 +49,7 @@ class FixedContactsRepository implements ContactsRepository {
     required String name,
     required String phoneNumber,
     String? email,
+    bool isEmergencyContact = true,
   }) async =>
       const Err(UnexpectedFailure());
 }

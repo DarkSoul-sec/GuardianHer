@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:guardianher/app/app.dart';
 import 'package:guardianher/core/error/failures.dart';
+import 'package:guardianher/core/permissions/permission_service.dart';
 import 'package:guardianher/core/providers.dart';
 import 'package:guardianher/core/result/result.dart';
 import 'package:guardianher/features/contacts/application/contacts_providers.dart';
@@ -21,6 +23,12 @@ Widget _harness(ProviderContainer container) {
 }
 
 void main() {
+  setUpAll(() {
+    SharedPreferences.setMockInitialValues({
+      'onboarding_done': true,
+    });
+  });
+
   group('contacts security', () {
     testWidgets('contacts are reachable immediately without authentication',
         (tester) async {
@@ -28,6 +36,12 @@ void main() {
         overrides: [
           secureStorageServiceProvider.overrideWithValue(
             FakeSecureStorageService(),
+          ),
+          permissionServiceProvider.overrideWithValue(
+            FakePermissionService()
+              ..statuses[AppPermission.location] = PermissionStatus.granted
+              ..statuses[AppPermission.sms] = PermissionStatus.granted
+              ..statuses[AppPermission.notifications] = PermissionStatus.granted,
           ),
         ],
       );

@@ -7,7 +7,6 @@ import 'package:guardianher/core/platform/app_info_service.dart';
 import 'package:guardianher/core/platform/device_admin_service.dart';
 import 'package:guardianher/core/platform/direct_sms_service.dart';
 import 'package:guardianher/core/platform/emergency_sms_bridge.dart';
-import 'package:guardianher/core/platform/live_location_platform.dart';
 import 'package:guardianher/core/platform/location_service.dart';
 import 'package:guardianher/core/platform/map_service.dart';
 import 'package:guardianher/core/platform/preferences_service.dart';
@@ -26,9 +25,6 @@ import 'package:guardianher/features/check_in/domain/check_in_message_sender.dar
 import 'package:guardianher/features/check_in/domain/check_in_scheduler.dart';
 import 'package:guardianher/features/check_in/domain/check_in_settings.dart';
 import 'package:guardianher/features/check_in/domain/check_in_settings_repository.dart';
-import 'package:guardianher/features/live_location/application/live_location_providers.dart';
-import 'package:guardianher/features/live_location/data/live_location_api_client.dart';
-import 'package:guardianher/features/live_location/domain/live_location_session.dart';
 import 'package:guardianher/features/location/domain/location_failures.dart';
 import 'package:guardianher/features/location/domain/location_point.dart';
 
@@ -323,145 +319,8 @@ List<Override> defaultOverrides({
     whatsappServiceProvider.overrideWithValue(FakeWhatsAppService()),
     directSmsServiceProvider.overrideWithValue(FakeDirectSmsService()),
     nativeEmergencySmsBridgeProvider.overrideWithValue(FakeNativeEmergencySmsBridge()),
-    // Live-location fakes (Phase 3J). The API fake is UNCONFIGURED by
-    // default so any test that reaches the live flow fails fast without
-    // touching channels; live-sharing tests override with a configured one.
-    liveLocationForegroundServiceProvider
-        .overrideWithValue(FakeLiveLocationForegroundService()),
-    liveLocationUpdatesProvider.overrideWithValue(FakeLiveLocationUpdates()),
-    liveLocationApiClientProvider
-        .overrideWith((ref) => FakeLiveLocationApiClient()),
     ...overrides,
   ];
-}
-
-/// [LiveLocationForegroundService] fake counting start/stop transitions.
-class FakeLiveLocationForegroundService
-    implements LiveLocationForegroundService {
-  int startCount = 0;
-  int stopCount = 0;
-
-  @override
-  Future<void> start() async {
-    startCount++;
-  }
-
-  @override
-  Future<void> stop() async {
-    stopCount++;
-  }
-}
-
-/// [LiveLocationUpdates] fake handing out a controllable fix stream.
-///
-/// Each [startUpdates] returns a FRESH single-subscription stream (matching
-/// native EventChannel semantics), so a second session in the same container
-/// works instead of throwing "already listened to". Controllers are swapped,
-/// never closed: StreamController.close() never completes under fakeAsync and
-/// would deadlock the awaited stop chain (device-parity regression guard).
-class FakeLiveLocationUpdates implements LiveLocationUpdates {
-  StreamController<LiveFix> _controller = StreamController<LiveFix>();
-
-  int startCount = 0;
-  int stopCount = 0;
-  Duration? lastInterval;
-
-  void emit(LiveFix fix) {
-    _controller.add(fix);
-  }
-
-  @override
-  Future<Stream<LiveFix>> startUpdates({required Duration interval}) async {
-    startCount++;
-    lastInterval = interval;
-    return _controller.stream;
-  }
-
-  @override
-  Future<void> stopUpdates() async {
-    stopCount++;
-    // Later starts must get a fresh stream; the abandoned controller has no
-    // listeners or timers, so leaving it unclosed is inert.
-    _controller = StreamController<LiveFix>();
-  }
-}
-
-/// [LiveLocationApiClient] fake with scriptable results and a request log.
-///
-/// Starts UNCONFIGURED (matching an app built without GUARDIANHER_LIVE_API_URL)
-/// so the feature is honestly dormant; set [configured] to exercise real flows.
-class FakeLiveLocationApiClient implements LiveLocationApiClient {
-  FakeLiveLocationApiClient({
-    this.configured = false,
-    this.creation,
-    this.createResult,
-    this.pushResults = const [],
-    this.stopResult,
-  });
-
-  bool configured;
-  LiveSessionCreation? creation;
-
-  /// Scripts createSession outcomes; null means success using [creation].
-  Result<LiveSessionCreation>? Function()? createResult;
-
-  /// Scripts pushLocation outcomes per call, falling back to Ok.
-  List<Result<void>> pushResults;
-  int pushCalls = 0;
-  Result<void>? stopResult;
-
-  int createCalls = 0;
-  int stopCalls = 0;
-  final List<String> stoppedTokens = [];
-  LiveUpdateInterval? lastCreateInterval;
-  final List<({String token, double latitude, double longitude})> pushes = [];
-
-  static LiveSessionCreation defaultCreation({
-    LiveShareDuration duration = LiveShareDuration.minutes30,
-  }) {
-    return LiveSessionCreation(
-      token: 'T' * 43,
-      shareUrl: 'https://live.example.org/live/${'T' * 43}',
-      expiresAt: DateTime.now().toUtc().add(duration.asDuration),
-    );
-  }
-
-  @override
-  bool get isConfigured => configured;
-
-  @override
-  Future<Result<LiveSessionCreation>> createSession({
-    required LiveShareDuration duration,
-    required LiveUpdateInterval interval,
-  }) async {
-    createCalls++;
-    lastCreateInterval = interval;
-    final scripted = createResult?.call();
-    if (scripted != null) return scripted;
-    return Ok(creation ?? defaultCreation(duration: duration));
-  }
-
-  @override
-  Future<Result<void>> pushLocation({
-    required String token,
-    required double latitude,
-    required double longitude,
-    required double accuracyMeters,
-    required DateTime capturedAt,
-  }) async {
-    pushes.add((token: token, latitude: latitude, longitude: longitude));
-    final index = pushCalls;
-    pushCalls++;
-    if (index < pushResults.length) return pushResults[index];
-    return const Ok(null);
-  }
-
-  @override
-  Future<Result<void>> stopSession({required String token}) async {
-    stopCalls++;
-    stoppedTokens.add(token);
-    return stopResult ?? const Ok(null);
-  }
 }
 
 /// In-memory [CheckInSettingsRepository] for tests.

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../app/router/app_router.dart';
 import '../../../core/permissions/permission_service.dart';
 import '../../../core/providers.dart';
 import '../../../core/result/result.dart';
@@ -39,7 +38,6 @@ class LocationScreen extends ConsumerWidget {
               onShare: () => _share(context, ref),
               onWhatsApp: () =>
                   showWhatsAppShareFlow(context, ref, state.point!),
-              onLiveLocation: () => context.push(AppRoutes.liveLocation),
             ),
           LocationStatus.denied ||
           LocationStatus.servicesDisabled ||
@@ -181,14 +179,12 @@ class _LocationCapturedView extends StatelessWidget {
     required this.onOpenInMaps,
     required this.onShare,
     required this.onWhatsApp,
-    required this.onLiveLocation,
   });
 
   final LocationPoint point;
   final VoidCallback onOpenInMaps;
   final VoidCallback onShare;
   final VoidCallback onWhatsApp;
-  final VoidCallback onLiveLocation;
 
   @override
   Widget build(BuildContext context) {
@@ -256,15 +252,6 @@ class _LocationCapturedView extends StatelessWidget {
           onPressed: onWhatsApp,
           icon: const Icon(Icons.chat_bubble_outline),
           label: const Text('Send via WhatsApp'),
-          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-        ),
-        const SizedBox(height: 12),
-        // Continuous sharing entry (Phase 3J). Opens the dedicated screen so
-        // this one stays one-shot by contract.
-        OutlinedButton.icon(
-          onPressed: onLiveLocation,
-          icon: const Icon(Icons.share_location_outlined),
-          label: const Text('Share live location'),
           style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
         ),
       ],

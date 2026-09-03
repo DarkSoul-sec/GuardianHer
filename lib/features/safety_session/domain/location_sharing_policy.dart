@@ -10,7 +10,7 @@ import 'safety_session_type.dart';
 /// * Intervals are deliberately coarse — a fix every 10–30 s is plenty for
 ///   "where are they right now" while keeping the GPS radio duty-cycled.
 /// * Continuous capture only ever runs inside a visible foreground-service
-///   session (SOS, live share, journey). Nothing requests location without an
+///   session (SOS, journey). Nothing requests location without an
 ///   active session, and the requests stop the moment the session ends or
 ///   expires — enforced by the owning controllers' teardown paths.
 final class LocationSharingPolicy {
@@ -18,9 +18,6 @@ final class LocationSharingPolicy {
 
   /// SOS emergency cadence: as fresh as it gets, battery be damned.
   Duration get sosInterval => const Duration(seconds: 10);
-
-  /// Ordinary user-initiated live sharing.
-  Duration get liveInterval => const Duration(seconds: 30);
 
   /// Safe Journey cadence bounds and default. Requests outside the closed
   /// range are clamped so callers cannot silently create a tracking-heavy
@@ -38,7 +35,6 @@ final class LocationSharingPolicy {
   /// The interval a given session type should use.
   Duration intervalFor(SafetySessionType type) => switch (type) {
         SafetySessionType.sos => sosInterval,
-        SafetySessionType.liveLocation => liveInterval,
         SafetySessionType.safeJourney => journeyInterval(),
       };
 }

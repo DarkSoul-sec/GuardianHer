@@ -6,8 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers.dart';
 import '../../location/domain/location_format.dart';
-import '../../live_location/application/live_location_providers.dart';
-import '../../live_location/domain/live_location_session.dart';
 import '../application/journey_providers.dart';
 import '../application/journey_share_message.dart';
 import '../domain/vehicle_registration.dart';
@@ -331,10 +329,6 @@ class _ActiveViewState extends ConsumerState<_ActiveView> {
   @override
   Widget build(BuildContext context) {
     final journey = widget.journey;
-    final liveStatus = ref.watch(
-      liveLocationControllerProvider.select((s) => s.status),
-    );
-    final liveIsUp = liveStatus == LiveSessionStatus.active;
     final elapsed = DateTime.now().difference(journey.session.startedAt);
     final activeVehicle = journey.vehicle;
     return ListView(
@@ -348,10 +342,8 @@ class _ActiveViewState extends ConsumerState<_ActiveView> {
         Text('Started at ${formatCapturedTime(journey.session.startedAt)}'),
         const SizedBox(height: 4),
         Text(
-          liveIsUp ? 'Location: LIVE' : 'Location: connecting…',
-          style: TextStyle(
-            color: liveIsUp ? Colors.green.shade700 : Colors.orange.shade800,
-          ),
+          'Location: connecting…',
+          style: TextStyle(color: Colors.orange.shade800),
         ),
         if (activeVehicle != null && !activeVehicle.hasNoContent) ...[
           const SizedBox(height: 12),

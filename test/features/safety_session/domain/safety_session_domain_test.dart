@@ -52,7 +52,6 @@ void main() {
 
     test('mandated cadences (§5)', () {
       expect(policy.sosInterval, const Duration(seconds: 10));
-      expect(policy.liveInterval, const Duration(seconds: 30));
       expect(
         policy.intervalFor(SafetySessionType.safeJourney),
         const Duration(seconds: 20),

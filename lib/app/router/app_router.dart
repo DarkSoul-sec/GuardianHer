@@ -2,12 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/routing/route_guards.dart';
+import '../../core/providers.dart';
 import '../../features/check_in/presentation/check_in_screen.dart';
 import '../../features/check_in/presentation/check_in_settings_screen.dart';
 import '../../features/contacts/presentation/contact_form_screen.dart';
 import '../../features/contacts/presentation/contacts_screen.dart';
 import '../../features/emergency_history/presentation/emergency_history_screen.dart';
-import '../../features/live_location/presentation/live_location_screen.dart';
+
 import '../../features/journey/presentation/journey_screen.dart';
 import '../../features/location/presentation/location_screen.dart';
 import '../../features/onboarding/presentation/screens/permission_onboarding_screen.dart';
@@ -40,7 +41,6 @@ abstract final class AppRoutes {
   static String contactsEdit(String id) => '/contacts/edit/$id';
   static const sos = '/sos';
   static const location = '/location';
-  static const liveLocation = '/live-location';
   static const journey = '/journey';
   static const checkIn = '/check-in';
   static const checkInSettings = '/check-in/settings';
@@ -77,7 +77,10 @@ final appRouterProvider = Provider<GoRouter>(
 
         // Check on splash screen only
         if (isOnSplash) {
-          final needsOnboarding = await RouteGuards.isOnboardingRequired();
+          final permissionService = ref.read(permissionServiceProvider);
+          final needsOnboarding = await RouteGuards.isOnboardingRequired(
+            permissionService: permissionService,
+          );
           if (needsOnboarding) {
             return AppRoutes.onboardingPermissions;
           } else {
@@ -137,10 +140,7 @@ final appRouterProvider = Provider<GoRouter>(
           path: AppRoutes.location,
           builder: (context, state) => const LocationScreen(),
         ),
-        GoRoute(
-          path: AppRoutes.liveLocation,
-          builder: (context, state) => const LiveLocationScreen(),
-        ),
+        
         GoRoute(
           path: AppRoutes.checkIn,
           builder: (context, state) => const CheckInScreen(),

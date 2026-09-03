@@ -6,6 +6,7 @@ import 'package:guardianher/core/error/failures.dart';
 import 'package:guardianher/core/providers.dart';
 import 'package:guardianher/core/result/result.dart';
 import 'package:guardianher/features/contacts/application/contacts_providers.dart';
+import 'package:guardianher/features/contacts/application/contacts_state.dart';
 import 'package:guardianher/features/contacts/data/contacts_repository_impl.dart';
 import 'package:guardianher/features/location/application/location_providers.dart';
 import 'package:guardianher/features/location/application/location_state.dart';
@@ -160,15 +161,19 @@ void main() {
       addTearDown(container.dispose);
 
       // Verify contacts exist before deletion.
-      final before = container.read(contactsControllerProvider);
-      expect(before.contacts, isNotEmpty);
+      // Note: The contacts controller loads async, so we check the storage directly.
+      final beforeContacts = await repository.loadContacts();
+      expect(beforeContacts.isOk, isTrue);
+      expect(beforeContacts.getOrNull(), isNotEmpty);
 
       final privacy = container.read(privacyControllerProvider.notifier);
-      await privacy.deleteAllLocalData();
+      final result = await privacy.deleteAllLocalData();
+      expect(result.isOk, isTrue);
 
-      // After invalidation, contacts controller is re-created → empty.
-      final after = container.read(contactsControllerProvider);
-      expect(after.contacts, isEmpty);
+      // After deletion, storage should be empty.
+      final afterContacts = await repository.loadContacts();
+      expect(afterContacts.isOk, isTrue);
+      expect(afterContacts.getOrNull(), isEmpty);
     });
   });
 }

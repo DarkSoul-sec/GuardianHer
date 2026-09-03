@@ -91,7 +91,7 @@ void main() {
       final str = point.toString();
       expect(str, isNot(contains('37.42')));
       expect(str, isNot(contains('-122.08')));
-      expect(str, contains('±15m'));
+      expect(str, contains('±15.0m'));
     });
 
     test('toString shows stale flag when stale', () {

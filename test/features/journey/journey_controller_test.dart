@@ -1,34 +1,26 @@
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:guardianher/features/journey/application/emergency_vehicle_context.dart';
 import 'package:guardianher/features/journey/application/journey_providers.dart';
 import 'package:guardianher/features/journey/domain/journey_state.dart';
-import 'package:guardianher/features/live_location/application/live_location_providers.dart';
 import 'package:guardianher/core/result/result.dart';
-import 'package:guardianher/features/live_location/data/live_location_api_client.dart';
-import 'package:guardianher/features/live_location/domain/live_location_session.dart';
 import 'package:guardianher/features/sos/application/sos_providers.dart';
 import 'package:guardianher/features/sos/application/sos_state.dart';
 
 import '../../helpers/fakes.dart';
 import '../sos/sos_test_fakes.dart';
 
-/// Fixture wiring a journey container with a CONFIGURED live backend whose
-/// creations hand out DISTINCT tokens, so ownership across two sessions
-/// (journey → emergency) is observable.
+/// Fixture wiring a journey container with mocked SOS.
 class JourneyFixture {
   JourneyFixture() {
-    api = SequencedTokensApi()..configured = true;
-    final sos = createSosContainer(extraOverrides: [
-      liveLocationApiClientProvider.overrideWithValue(api),
-    ]);
+    final sos = createSosContainer();
     container = sos.container;
     timer = sos.timer;
   }
 
-  late final SequencedTokensApi api;
   late final ProviderContainer container;
   late final FakeSosTimer timer;
 
@@ -40,27 +32,13 @@ class JourneyFixture {
   }
 }
 
-class SequencedTokensApi extends FakeLiveLocationApiClient {
-  int _sequence = 0;
-
-  String get lastToken => creation!.token;
-
-  @override
-  Future<Result<LiveSessionCreation>> createSession({
-    required LiveShareDuration duration,
-    required LiveUpdateInterval interval,
-  }) {
-    _sequence++;
-    creation = LiveSessionCreation(
-      token: 'token-$_sequence-${'t' * 36}',
-      shareUrl: 'https://live.example.org/live/journey-$_sequence',
-      expiresAt: DateTime.now().toUtc().add(duration.asDuration),
-    );
-    return super.createSession(duration: duration, interval: interval);
-  }
-}
-
 void main() {
+  setUpAll(() {
+    SharedPreferences.setMockInitialValues({
+      'onboarding_done': true,
+    });
+  });
+
   test('start runs the journey on the normal cadence with a share link',
       () async {
     final f = JourneyFixture();
@@ -79,12 +57,10 @@ void main() {
     final state = f.state;
     expect(state, isA<JourneyActive>());
     final active = state as JourneyActive;
-    expect(active.shareUrl, contains('https://live.example.org'));
+    expect(active.shareUrl, contains('https://guardianher.app/journey'));
     expect(active.vehicle?.type, VehicleType.taxi);
     expect(active.vehicle?.displayRegistrationNumber, 'DL 01 AB 1234');
     expect(active.session.type.storageName, 'safe_journey');
-    expect(f.api.createCalls, 1);
-    expect(f.api.lastCreateInterval, LiveUpdateInterval.normal);
   });
 
   test('a duplicate start is absorbed silently', () async {
@@ -97,8 +73,6 @@ void main() {
     await notifier.startJourney();
 
     expect(f.state, same(first));
-    expect(f.api.createCalls, 1,
-        reason: 'exactly one live session, never two');
   });
 
   test('starting is refused while an emergency is engaged', () async {
@@ -113,7 +87,6 @@ void main() {
     final state = f.state;
     expect(state, isA<JourneyIdle>());
     expect((state as JourneyIdle).notice, isNotNull);
-    expect(f.api.createCalls, 0);
   });
 
   test('a vehicle attached at start rides the active session and the '
@@ -212,7 +185,6 @@ void main() {
     addTearDown(f.container.dispose);
     final notifier = f.container.read(journeyControllerProvider.notifier);
     await notifier.startJourney();
-    final journeyToken = f.api.lastToken;
 
     // Shake SOS arms and activates (fake timer fires instantly).
     f.armSos();
@@ -226,17 +198,6 @@ void main() {
       (state as JourneyCompleted).reason,
       JourneyEndReason.escalatedToSos,
     );
-
-    // Exactly one MORE create than the journey's own: the SOS emergency
-    // session. The journey's share was stopped first.
-    expect(f.api.createCalls, 2);
-    expect(f.api.lastCreateInterval, LiveUpdateInterval.sos);
-    expect(f.api.lastToken, isNot(journeyToken));
-    expect(f.api.stoppedTokens, contains(journeyToken));
-
-    final live = f.container.read(liveLocationControllerProvider);
-    expect(live.status, LiveSessionStatus.active);
-    expect(live.session, isNotNull);
   });
 
   test('escalation while still STARTING closes the ledger honestly',
@@ -261,31 +222,12 @@ void main() {
     }
   });
 
-  test('an unconfigured build refuses to start with an honest notice',
-      () async {
-    final sos = createSosContainer(extraOverrides: [
-      liveLocationApiClientProvider
-          .overrideWithValue(FakeLiveLocationApiClient()),
-    ]);
-    addTearDown(sos.container.dispose);
-    sos.container.read(journeyControllerProvider);
-
-    await sos.container
-        .read(journeyControllerProvider.notifier)
-        .startJourney();
-
-    final state = sos.container.read(journeyControllerProvider);
-    expect(state, isA<JourneyIdle>());
-    expect((state as JourneyIdle).notice, contains('could not start'));
-  });
-
   test('"Arrived" ends the journey, stops its share, dismisses cleanly',
       () async {
     final f = JourneyFixture();
     addTearDown(f.container.dispose);
     final notifier = f.container.read(journeyControllerProvider.notifier);
     await notifier.startJourney();
-    final token = f.api.lastToken;
 
     await notifier.endJourney();
     await Future<void>.delayed(Duration.zero);
@@ -293,46 +235,23 @@ void main() {
     final state = f.state;
     expect(state, isA<JourneyCompleted>());
     expect((state as JourneyCompleted).reason, JourneyEndReason.arrived);
-    expect(f.api.stoppedTokens, contains(token));
 
     notifier.dismissCompletion();
     expect(f.state, const JourneyIdle());
   });
 
-  test('a lapsed share window flags the journey but does NOT end it',
-      () => fakeAsync((async) {
-            final f = JourneyFixture();
-            addTearDown(f.container.dispose);
-            f.container.read(journeyControllerProvider.notifier);
+  test('shareAgain replaces the journey share link', () async {
+    final f = JourneyFixture();
+    addTearDown(f.container.dispose);
+    final notifier = f.container.read(journeyControllerProvider.notifier);
+    await notifier.startJourney();
+    final firstUrl = (f.state as JourneyActive).shareUrl;
 
-            final starting = f.container
-                .read(journeyControllerProvider.notifier)
-                .startJourney();
-            async.flushMicrotasks();
-            expect(starting, completes);
-            async.flushMicrotasks();
+    await notifier.shareAgain(f.state as JourneyActive);
 
-            // Two hours pass; the live TTL lapses.
-            async.elapse(const Duration(hours: 2, seconds: 5));
-            async.flushMicrotasks();
-
-            expect(
-              f.container.read(liveLocationControllerProvider).status,
-              LiveSessionStatus.expired,
-            );
-            final state = f.state;
-            expect(state, isA<JourneyActive>());
-            expect((state as JourneyActive).shareExpired, isTrue);
-
-            final ending = f.container
-                .read(journeyControllerProvider.notifier)
-                .endJourney();
-            async.flushMicrotasks();
-            expect(ending, completes);
-            async.flushMicrotasks();
-            expect(
-              (f.state as JourneyCompleted).reason,
-              JourneyEndReason.arrived,
-            );
-          }));
+    final state = f.state as JourneyActive;
+    expect(state.shareUrl, isNot(firstUrl));
+    expect(state.shareUrl, contains('https://guardianher.app/journey'));
+    expect(state.shareExpired, isFalse);
+  });
 }

@@ -6,7 +6,6 @@ import '../data/data_cleanup_service_impl.dart';
 import '../data/direct_sms_service_impl.dart';
 import '../data/email_service_impl.dart';
 import '../data/emergency_sms_bridge_impl.dart';
-import '../data/live_sharing_service_impl.dart';
 import '../data/map_service_impl.dart';
 import '../data/notification_service_impl.dart';
 import '../data/permission_service_impl.dart';
@@ -24,10 +23,8 @@ import 'platform/device_admin_service.dart';
 import 'platform/direct_sms_service.dart';
 import 'platform/email_service.dart';
 import 'platform/emergency_sms_bridge.dart';
-import 'platform/live_location_platform.dart';
 import 'platform/local_notifications.dart';
 import 'platform/location_service.dart';
-import 'platform/live_sharing_service.dart';
 import 'platform/map_service.dart';
 import 'platform/notification_service.dart';
 import 'platform/preferences_service.dart';
@@ -156,29 +153,9 @@ final deviceAdminServiceProvider = Provider<DeviceAdminService>(
   (ref) => const DeviceAdminServiceChannel(),
 );
 
-/// Location-type foreground service holding the location context while a
-/// LIVE-LOCATION session is active (Android only; Phase 3J). Same pattern as
-/// [sosLocationServiceProvider]; separate service so SOS stays untouched.
-final liveLocationForegroundServiceProvider =
-    Provider<LiveLocationForegroundService>(
-  (ref) => const LiveLocationForegroundServiceChannel(),
-);
-
-/// Native continuous location fixes (requestLocationUpdates on GPS+NETWORK)
-/// streamed over guardianher/location_updates while a live session runs.
-final liveLocationUpdatesProvider = Provider<LiveLocationUpdates>(
-  (ref) => LiveLocationUpdatesChannel(),
-);
-
 /// Native Android emergency SMS bridge. Delegates critical SMS-sending to a
 /// foreground service that survives MainActivity destruction. Used exclusively
 /// by EmergencyOrchestrator; user-initiated SMS uses [smsServiceProvider].
 final nativeEmergencySmsBridgeProvider = Provider<NativeEmergencySmsBridge>(
   (ref) => MethodChannelEmergencySmsBridge(),
-);
-
-/// Native Android live sharing service. Runs a foreground service that sends
-/// periodic location updates via SMS to emergency contacts. No server needed.
-final liveSharingServiceProvider = Provider<LiveSharingService>(
-  (ref) => MethodChannelLiveSharingService(),
 );

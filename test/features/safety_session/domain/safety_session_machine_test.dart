@@ -51,7 +51,7 @@ void main() {
       ]) {
         final result = SafetySessionMachine.start(
           terminal,
-          type: SafetySessionType.liveLocation,
+          type: SafetySessionType.sos,
           id: SafetySessionId.generate(),
           now: t1,
         );

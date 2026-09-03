@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:guardianher/app/app.dart';
 import 'package:guardianher/app/home_screen.dart';
 import 'package:guardianher/app/router/app_router.dart';
 import 'package:guardianher/app/theme/app_theme.dart';
+import 'package:guardianher/core/permissions/permission_service.dart';
+import 'package:guardianher/core/providers.dart';
 import 'package:guardianher/features/contacts/presentation/contact_form_screen.dart';
 import 'package:guardianher/features/contacts/presentation/contacts_screen.dart';
 import 'package:guardianher/features/permissions/presentation/permissions_screen.dart';
@@ -23,10 +26,22 @@ Widget _harness(ProviderContainer container) {
 }
 
 ProviderContainer _container() {
-  return createContainer();
+  final permissionService = FakePermissionService()
+    ..statuses[AppPermission.location] = PermissionStatus.granted
+    ..statuses[AppPermission.sms] = PermissionStatus.granted
+    ..statuses[AppPermission.notifications] = PermissionStatus.granted;
+  return createContainer(overrides: [
+    permissionServiceProvider.overrideWithValue(permissionService),
+  ]);
 }
 
 void main() {
+  setUpAll(() {
+    SharedPreferences.setMockInitialValues({
+      'onboarding_done': true,
+    });
+  });
+
   group('GuardianHerApp', () {
     testWidgets('opens directly to Home without any lock screen',
         (tester) async {
@@ -137,13 +152,15 @@ void main() {
       expect(AppTheme.dark.useMaterial3, isTrue);
     });
 
-    test('appRouterProvider resolves a configured GoRouter', () {
+    testWidgets('appRouterProvider resolves a configured GoRouter', (tester) async {
       final container = _container();
       addTearDown(container.dispose);
 
       final router = container.read(appRouterProvider);
       expect(router, isA<GoRouter>());
-      // The router starts on Home; there is no lock route anymore.
+      // The router starts on splash but redirects to home after onboarding check.
+      await tester.pumpWidget(_harness(container));
+      await tester.pumpAndSettle();
       expect(router.routeInformationProvider.value.uri.path,
           AppRoutes.home);
     });

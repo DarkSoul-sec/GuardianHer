@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/result/result.dart';
-import '../../../core/platform/live_sharing_service.dart';
 import '../../../shared/widgets/premium_components.dart';
 import '../../../app/theme/app_theme.dart';
 import '../../contacts/application/contacts_providers.dart';
@@ -253,7 +252,6 @@ class _SosActiveView extends ConsumerWidget {
               ),
             const _EmergencyVehicleSection(),
             const _SosLocationSection(),
-            const _LiveSharingSection(),
             if (emergency.phase == EmergencyPhase.active &&
                 (emergency.guardians.isNotEmpty ||
                     emergency.errorMessage != null))
@@ -551,86 +549,6 @@ class _SosLocationSection extends ConsumerWidget {
         break;
     }
     return actions;
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Live sharing via SMS relay (serverless)
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _LiveSharingSection extends ConsumerWidget {
-  const _LiveSharingSection();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final sosState = ref.watch(sosControllerProvider);
-    final actions = ref.watch(sosActionsControllerProvider);
-
-    // Show indicator when SOS is active (live sharing runs during SOS)
-    if (sosState is! SosActive) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppTheme.violet.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppTheme.violet.withValues(alpha: 0.3),
-          ),
-        ),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppTheme.violet,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.violet.withValues(alpha: 0.5),
-                        blurRadius: 6,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'LIVE SHARING ACTIVE',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: AppTheme.violet,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5,
-                      ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'SMS location updates sent every 30s to guardians',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Tap link in SMS to track in Maps',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textMuted,
-                    fontSize: 11,
-                  ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 
