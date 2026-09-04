@@ -138,22 +138,7 @@
             android:exported="false"
             android:foregroundServiceType="dataSync"
             android:stopWithTask="false"/>
-        <!-- Holds the foreground location context while a live-location sharing
-             session is active (Phase 3J). START_NOT_STICKY + no boot restore:
-             tracking never silently resumes after process death or reboot. -->
-        <service
-            android:name=".LiveLocationService"
-            android:exported="false"
-            android:foregroundServiceType="location"
-            android:stopWithTask="false"/>
-        <!-- Serverless live location sharing via SMS relay (F-Droid pattern).
-             Sends location updates via SMS every 30s to emergency contacts.
-             Uses LOCATION + DATA_SYNC foreground service types on Android 14+. -->
-        <service
-            android:name=".live_sharing.LiveSharingService"
-            android:exported="false"
-            android:foregroundServiceType="location|dataSync"
-            android:stopWithTask="false"/>
+
         <!-- Quick Settings SOS tile (Phase B). Pure trigger: the tap opens the
              app with guardianher://tilesos and the EXISTING SOS pipeline arms.
              exported=true is required — SystemUI must be able to bind it; it is

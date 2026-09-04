@@ -141,7 +141,7 @@ class PermissionOnboardingNotifier extends StateNotifier<PermissionOnboardingSta
         PermissionStatusItem(
           step: PermissionStep.location,
           title: 'Location Access',
-          description: 'Required for SOS location capture and live location sharing',
+          description: 'Required for SOS location capture',
           icon: '📍',
           isCritical: true,
         ),

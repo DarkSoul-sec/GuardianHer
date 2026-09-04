@@ -76,17 +76,9 @@ class JourneyController extends Notifier<JourneyState> {
     }
     state = JourneyStarting(session: session, vehicle: sanitizedVehicle);
 
-    // Simulated share - no live tracking without live_location feature
-    final started = true;
-    if (!started) {
-      _failStart();
-      return;
-    }
-    final liveSession = _FakeLiveSession(
-      sessionId: 'journey-${session.id.value}',
-      shareUrl: 'https://guardianher.app/journey/${session.id.value}',
-      expiresAt: _clock().add(const Duration(hours: 2)),
-    );
+    // Generate a share URL for the journey (no live tracking)
+    final shareUrl = 'https://guardianher.app/journey/${session.id.value}';
+    final expiresAt = _clock().add(const Duration(hours: 2));
 
     final activated = SafetySessionMachine.activate(session, now: _clock());
     final active = activated.getOrNull();
@@ -97,8 +89,8 @@ class JourneyController extends Notifier<JourneyState> {
     state = JourneyActive(
       session: active,
       vehicle: sanitizedVehicle,
-      shareUrl: liveSession.shareUrl,
-      expiresAt: liveSession.expiresAt,
+      shareUrl: shareUrl,
+      expiresAt: expiresAt,
       shareExpired: false,
     );
     _publishVehicleContext(sanitizedVehicle);
@@ -266,14 +258,11 @@ class JourneyController extends Notifier<JourneyState> {
   /// (replaces the dead link; still exactly one live session).
   Future<void> shareAgain(JourneyActive active) async {
     if (_sosEngaged(ref.read(sosControllerProvider))) return;
-    final liveSession = _FakeLiveSession(
-      sessionId: 'journey-${active.session.id.value}-${DateTime.now().millisecondsSinceEpoch}',
-      shareUrl: 'https://guardianher.app/journey/${active.session.id.value}/${DateTime.now().millisecondsSinceEpoch}',
-      expiresAt: _clock().add(const Duration(hours: 2)),
-    );
+    final shareUrl = 'https://guardianher.app/journey/${active.session.id.value}/${DateTime.now().millisecondsSinceEpoch}';
+    final expiresAt = _clock().add(const Duration(hours: 2));
     state = active.copyWith(
-      shareUrl: liveSession.shareUrl,
-      expiresAt: liveSession.expiresAt,
+      shareUrl: shareUrl,
+      expiresAt: expiresAt,
       shareExpired: false,
     );
   }
@@ -289,17 +278,4 @@ class JourneyController extends Notifier<JourneyState> {
       ref.read(emergencyVehicleContextProvider.notifier).state = null;
     }
   }
-}
-
-/// Minimal fake live session for journeys without live_location feature.
-class _FakeLiveSession {
-  const _FakeLiveSession({
-    required this.sessionId,
-    required this.shareUrl,
-    required this.expiresAt,
-  });
-
-  final String sessionId;
-  final String shareUrl;
-  final DateTime expiresAt;
 }

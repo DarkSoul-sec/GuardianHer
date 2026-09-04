@@ -132,7 +132,7 @@ void main() {
       expect(find.byType(NavigationBar), findsOneWidget);
     });
 
-    testWidgets('dark theme is Material 3', (tester) async {
+    testWidgets('light theme is Material 3', (tester) async {
       final container = _container();
       addTearDown(container.dispose);
 
@@ -141,7 +141,7 @@ void main() {
 
       final context = tester.element(find.byType(NavigationBar));
       final theme = Theme.of(context);
-      expect(theme.brightness, Brightness.dark);
+      expect(theme.brightness, Brightness.light);
       expect(theme.useMaterial3, isTrue);
     });
 

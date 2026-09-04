@@ -10,6 +10,7 @@ import '../../features/contacts/presentation/contacts_screen.dart';
 import '../../features/emergency_history/presentation/emergency_history_screen.dart';
 
 import '../../features/journey/presentation/journey_screen.dart';
+import '../../features/journey/presentation/map_screen.dart';
 import '../../features/location/presentation/location_screen.dart';
 import '../../features/onboarding/presentation/screens/permission_onboarding_screen.dart';
 import '../../features/onboarding/presentation/screens/splash_screen.dart';
@@ -42,6 +43,7 @@ abstract final class AppRoutes {
   static const sos = '/sos';
   static const location = '/location';
   static const journey = '/journey';
+  static const map = '/map';
   static const checkIn = '/check-in';
   static const checkInSettings = '/check-in/settings';
   static const history = '/history';
@@ -100,6 +102,10 @@ final appRouterProvider = Provider<GoRouter>(
             GoRoute(
               path: AppRoutes.home,
               builder: (context, state) => const HomeScreen(),
+            ),
+            GoRoute(
+              path: AppRoutes.map,
+              builder: (context, state) => const MapScreen(),
             ),
             GoRoute(
               path: AppRoutes.journey,

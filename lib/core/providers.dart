@@ -1,6 +1,9 @@
+import 'dart:ui' show Locale;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/app_info_service_impl.dart';
+import '../data/battery_service_impl.dart';
 import '../data/call_service_impl.dart';
 import '../data/data_cleanup_service_impl.dart';
 import '../data/direct_sms_service_impl.dart';
@@ -18,6 +21,7 @@ import '../data/whatsapp_service_impl.dart';
 import '../features/location/data/location_manager_location_service.dart';
 import 'permissions/permission_service.dart';
 import 'platform/app_info_service.dart';
+import 'platform/battery_service.dart';
 import 'platform/call_service.dart';
 import 'platform/device_admin_service.dart';
 import 'platform/direct_sms_service.dart';
@@ -70,6 +74,9 @@ final dataCleanupServiceProvider = Provider<DataCleanupService>(
     preferences: ref.watch(preferencesServiceProvider),
   ),
 );
+
+/// Locale provider for language switching
+final localeProvider = StateProvider<Locale>((ref) => const Locale('en', 'IN'));
 
 /// Services below are wired to their plugin-backed implementations and remain
 /// overridable in tests.
@@ -151,6 +158,11 @@ final sosTileStateServiceProvider = Provider<SosTileStateService>(
 /// screen hides the feature on other platforms).
 final deviceAdminServiceProvider = Provider<DeviceAdminService>(
   (ref) => const DeviceAdminServiceChannel(),
+);
+
+/// Battery service for reading battery level
+final batteryServiceProvider = Provider<BatteryService>(
+  (ref) => const BatteryServiceImpl(),
 );
 
 /// Native Android emergency SMS bridge. Delegates critical SMS-sending to a

@@ -23,18 +23,31 @@ class GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
         color: elevated
-            ? AppTheme.glassFillElevated
-            : AppTheme.glassFill,
-        borderRadius: borderRadius ?? BorderRadius.circular(16),
+            ? (isDark
+                ? AppTheme.glassFillElevated
+                : AppTheme.surfaceWhite)
+            : (isDark ? AppTheme.glassFill : AppTheme.surfaceWhite),
+        borderRadius: borderRadius ?? BorderRadius.circular(24),
         border: Border.all(
-          color: elevated
-              ? AppTheme.glassBorder.withValues(alpha: 0.2)
-              : AppTheme.glassBorder.withValues(alpha: 0.1),
-          width: 0.5,
+          color: isDark
+              ? (elevated
+                  ? AppTheme.glassBorder.withValues(alpha: 0.2)
+                  : AppTheme.glassBorder.withValues(alpha: 0.1))
+              : AppTheme.borderLight,
+          width: isDark ? 0.5 : 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black.withValues(alpha: 0.25) : AppTheme.shadowLight,
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            spreadRadius: -8,
+          ),
+        ],
       ),
       child: Padding(padding: padding, child: child),
     );
@@ -308,11 +321,11 @@ class SosButton extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: const RadialGradient(
-            colors: [AppTheme.sosRed, AppTheme.sosRedDark],
+            colors: [AppTheme.coral, AppTheme.coralDark],
           ),
           boxShadow: [
             BoxShadow(
-              color: AppTheme.sosRedGlow,
+              color: AppTheme.coralGlow,
               blurRadius: 32,
               spreadRadius: 8,
             ),
@@ -433,9 +446,9 @@ class _HoldToConfirmButtonState extends State<HoldToConfirmButton>
           final progress = _progressCtrl.value;
           return Container(
             width: double.infinity,
-            height: 52,
+            height: 56,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(24),
               color: widget.color.withValues(alpha: 0.15 + 0.85 * progress),
               border: Border.all(
                 color: widget.color.withValues(alpha: 0.4 + 0.6 * progress),
@@ -452,7 +465,7 @@ class _HoldToConfirmButtonState extends State<HoldToConfirmButton>
                       alignment: Alignment.centerLeft,
                       child: Container(
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(24),
                           color: widget.color.withValues(alpha: 0.3),
                         ),
                       ),

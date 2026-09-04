@@ -19,7 +19,6 @@ import android.telephony.SmsManager
 import android.telephony.TelephonyManager
 import android.util.Log
 import com.guardianher.app.emergency.EmergencySmsService
-import com.guardianher.app.live_sharing.LiveSharingService
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -170,26 +169,6 @@ class MainActivity : FlutterActivity() {
       }
     }
 
-    // Holds the foreground location context while a live-location session is
-    // active (Phase 3J). Same location-FGS pattern as sos_location, separate
-    // service so the safety-critical SOS path stays untouched.
-    MethodChannel(
-        flutterEngine.dartExecutor.binaryMessenger,
-        "guardianher/live_location",
-    ).setMethodCallHandler { call, result ->
-      when (call.method) {
-        "start" -> {
-          LiveLocationService.start(this)
-          result.success(null)
-        }
-        "stop" -> {
-          LiveLocationService.stop(this)
-          result.success(null)
-        }
-        else -> result.notImplemented()
-      }
-    }
-
     // Quick Settings SOS tile state mirror (Phase B). Dart stays authoritative;
     // this only persists a boolean the tile reads in onStartListening.
     MethodChannel(
@@ -323,65 +302,65 @@ class MainActivity : FlutterActivity() {
           // Set up the callback so the service can push status to Flutter.
           val callback: com.guardianher.app.emergency.FlutterCallback =
               object : com.guardianher.app.emergency.FlutterCallback {
-                private fun dispatchToMain(action: () -> Unit) {
-                    if (Looper.myLooper() == Looper.getMainLooper()) {
-                        action()
-                    } else {
-                        Handler(Looper.getMainLooper()).post(action)
-                    }
-                }
-
-                override fun onGuardianStatusChanged(guardianId: String, status: String, error: String?) {
-                    val args = mutableMapOf<String, Any?>(
-                        "guardianId" to guardianId,
-                        "status" to status,
-                    )
-                    if (error != null) args["error"] = error
-                    dispatchToMain {
-                        try {
-                            MethodChannel(
-                                flutterEngine.dartExecutor.binaryMessenger,
-                                "guardianher/emergency_sms",
-                            ).invokeMethod("onGuardianStatusChanged", args)
-                        } catch (e: Exception) {
-                            Log.w(TAG, "[EmergencySMS] Could not push status to Flutter: ${e.message}")
-                        }
-                    }
-                }
-
-                override fun onEmergencyComplete(sosEventId: String, sent: Int, failed: Int) {
-                    dispatchToMain {
-                        try {
-                            MethodChannel(
-                                flutterEngine.dartExecutor.binaryMessenger,
-                                "guardianher/emergency_sms",
-                            ).invokeMethod("onEmergencyComplete", mapOf(
-                                "sosEventId" to sosEventId,
-                                "sent" to sent,
-                                "failed" to failed,
-                            ))
-                        } catch (e: Exception) {
-                            Log.w(TAG, "[EmergencySMS] Could not push completion to Flutter: ${e.message}")
-                        }
-                    }
+            private fun dispatchToMain(action: () -> Unit) {
+                if (Looper.myLooper() == Looper.getMainLooper()) {
+                  action()
+                } else {
+                  Handler(Looper.getMainLooper()).post(action)
                 }
             }
-          com.guardianher.app.emergency.EmergencySmsService.flutterCallback = callback
 
-          // Start the foreground service with all data in the intent.
-          val serviceIntent = Intent(this, com.guardianher.app.emergency.EmergencySmsService::class.java).apply {
-          putExtra(com.guardianher.app.emergency.EmergencySmsService.EXTRA_SOS_EVENT_ID, sosEventId)
-          putExtra(com.guardianher.app.emergency.EmergencySmsService.EXTRA_GUARDIANS_JSON, guardiansJson)
-          putExtra(com.guardianher.app.emergency.EmergencySmsService.EXTRA_SMS_BODY, smsBody)
-          if (locationUrl != null) putExtra(com.guardianher.app.emergency.EmergencySmsService.EXTRA_LOCATION_URL, locationUrl)
-          if (batteryPercentage != null) putExtra(com.guardianher.app.emergency.EmergencySmsService.EXTRA_BATTERY_PERCENTAGE, batteryPercentage)
+            override fun onGuardianStatusChanged(guardianId: String, status: String, error: String?) {
+                val args = mutableMapOf<String, Any?>(
+                    "guardianId" to guardianId,
+                    "status" to status,
+                )
+                if (error != null) args["error"] = error
+                dispatchToMain {
+                  try {
+                    MethodChannel(
+                        flutterEngine.dartExecutor.binaryMessenger,
+                        "guardianher/emergency_sms",
+                    ).invokeMethod("onGuardianStatusChanged", args)
+                  } catch (e: Exception) {
+                    Log.w(TAG, "[EmergencySMS] Could not push status to Flutter: ${e.message}")
+                  }
+                }
+            }
+
+            override fun onEmergencyComplete(sosEventId: String, sent: Int, failed: Int) {
+                dispatchToMain {
+                  try {
+                    MethodChannel(
+                        flutterEngine.dartExecutor.binaryMessenger,
+                        "guardianher/emergency_sms",
+                    ).invokeMethod("onEmergencyComplete", mapOf(
+                        "sosEventId" to sosEventId,
+                        "sent" to sent,
+                        "failed" to failed,
+                    ))
+                  } catch (e: Exception) {
+                    Log.w(TAG, "[EmergencySMS] Could not push completion to Flutter: ${e.message}")
+                  }
+                }
+            }
         }
-          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent)
-          } else {
-            startService(serviceIntent)
-          }
-          result.success(null)
+        com.guardianher.app.emergency.EmergencySmsService.flutterCallback = callback
+
+        // Start the foreground service with all data in the intent.
+        val serviceIntent = Intent(this, com.guardianher.app.emergency.EmergencySmsService::class.java).apply {
+        putExtra(com.guardianher.app.emergency.EmergencySmsService.EXTRA_SOS_EVENT_ID, sosEventId)
+        putExtra(com.guardianher.app.emergency.EmergencySmsService.EXTRA_GUARDIANS_JSON, guardiansJson)
+        putExtra(com.guardianher.app.emergency.EmergencySmsService.EXTRA_SMS_BODY, smsBody)
+        if (locationUrl != null) putExtra(com.guardianher.app.emergency.EmergencySmsService.EXTRA_LOCATION_URL, locationUrl)
+        if (batteryPercentage != null) putExtra(com.guardianher.app.emergency.EmergencySmsService.EXTRA_BATTERY_PERCENTAGE, batteryPercentage)
+      }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+          startForegroundService(serviceIntent)
+        } else {
+          startService(serviceIntent)
+        }
+        result.success(null)
         }
         "cancelEmergency" -> {
           stopService(Intent(this, com.guardianher.app.emergency.EmergencySmsService::class.java))
@@ -477,9 +456,6 @@ class MainActivity : FlutterActivity() {
       sosTriggerChannel?.invokeMethod("onNewIntent", uri)
       pendingSosUri = null
     }
-
-    // Live Sharing (SMS relay) — serverless live location via SMS
-    setupLiveSharingChannel(flutterEngine)
   }
 
   override fun onRequestPermissionsResult(
@@ -543,53 +519,6 @@ class MainActivity : FlutterActivity() {
       vendor == "honor" -> "magicos"
       vendor == "samsung" -> "samsung"
       else -> null
-    }
-  }
-
-  // ─── Live Sharing Service (SMS relay) ──────────────────────────────────
-  // Starts/stops the foreground service that sends live location via SMS.
-  // Channel: "guardianher/live_sharing"
-  private fun setupLiveSharingChannel(flutterEngine: FlutterEngine) {
-    MethodChannel(
-        flutterEngine.dartExecutor.binaryMessenger,
-        "guardianher/live_sharing",
-    ).setMethodCallHandler { call, result ->
-      when (call.method) {
-        "start" -> {
-          val contactsJson = call.argument<String>("contactsJson") ?: "[]"
-          val intervalSeconds = call.argument<Int>("intervalSeconds") ?: 30
-          val intent = Intent(this, LiveSharingService::class.java).apply {
-            action = LiveSharingService.ACTION_START
-            putExtra(LiveSharingService.EXTRA_CONTACTS_JSON, contactsJson)
-            putExtra(LiveSharingService.EXTRA_INTERVAL_SECONDS, intervalSeconds)
-          }
-          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-          } else {
-            startService(intent)
-          }
-          result.success(null)
-        }
-        "stop" -> {
-          val intent = Intent(this, LiveSharingService::class.java).apply {
-            action = LiveSharingService.ACTION_STOP
-          }
-          stopService(intent)
-          result.success(null)
-        }
-        "forceUpdate" -> {
-          val intent = Intent(this, LiveSharingService::class.java).apply {
-            action = LiveSharingService.ACTION_UPDATE
-          }
-          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-          } else {
-            startService(intent)
-          }
-          result.success(null)
-        }
-        else -> result.notImplemented()
-      }
     }
   }
 }

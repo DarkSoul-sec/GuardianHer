@@ -1,63 +1,126 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 
+import '../features/check_in/application/check_in_providers.dart';
 import '../features/contacts/application/contacts_providers.dart';
 import '../features/contacts/application/contacts_state.dart';
+import '../features/contacts/domain/trusted_contact.dart';
+import '../features/location/application/location_providers.dart';
 import '../features/sos/application/sos_providers.dart';
+import '../shared/widgets/guardianher_design.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
-import '../shared/widgets/premium_components.dart';
 
-/// Premium safety dashboard — the main landing screen.
+/// GuardianHer Home — premium safety dashboard.
 ///
-/// Layout: ambient background, app logo, greeting with protection status,
-/// large SOS button, safety status card, quick-action grid.
+/// Hierarchy: safety status → header → safety card (SOS center) →
+/// quick actions → trusted contacts. Scrollable, responsive, no fixed
+/// coordinates. All actions reuse existing providers/controllers.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final contacts = ref.watch(contactsControllerProvider);
-    final contactCount = switch (contacts) {
-      ContactsLoaded(:final contacts) => contacts.length,
-      _ => 0,
-    };
+    final location = ref.watch(locationControllerProvider);
+    final checkIn = ref.watch(checkInControllerProvider);
 
     return Scaffold(
-      backgroundColor: AppTheme.navyBase,
-      body: AmbientBackground(
-        centerGlowColor: AppTheme.violet,
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const _Header(),
-                const SizedBox(height: 4),
-                const _Greeting(),
-                const SizedBox(height: 32),
-                const _SosSection(),
-                const SizedBox(height: 28),
-                _SafetyStatusCard(contactCount: contactCount),
-                const SizedBox(height: 28),
-                const PremiumSectionHeader(title: 'Quick Actions'),
-                const _QuickActionsGrid(),
-                const SizedBox(height: 32),
-                const _PrivacyNote(),
-                const SizedBox(height: 24),
-              ],
-            ),
+      backgroundColor: AppTheme.appBackground,
+      body: SafeArea(
+        bottom: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _SafetyStatusLine(locationLabel: _locationLabel(location)),
+              const SizedBox(height: 14),
+              const _Header(),
+              const SizedBox(height: 18),
+              _SafetyCard(lastCheckIn: _lastCheckInText(checkIn)),
+              const SizedBox(height: 24),
+              const GhSectionTitle(title: 'Quick Actions'),
+              const _QuickActionsRow(),
+              const SizedBox(height: 24),
+              _TrustedContactsSection(),
+              const SizedBox(height: 12),
+              Center(
+                child: Text(
+                  'Your safety data stays on this device.',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppTheme.textFaint,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+
+  String _locationLabel(dynamic location) {
+    try {
+      final label = location.statusLabel as String?;
+      if (label != null && label.isNotEmpty) return label;
+    } catch (_) {}
+    return 'Current Location';
+  }
+
+  String _lastCheckInText(dynamic checkIn) {
+    try {
+      final at = checkIn.settings.lastAcknowledgedAt as DateTime?;
+      if (at == null) return 'Last check-in: not yet';
+      final diff = DateTime.now().difference(at);
+      if (diff.inMinutes < 1) return 'Last check-in: just now';
+      if (diff.inMinutes < 60) return 'Last check-in: ${diff.inMinutes} min ago';
+      if (diff.inHours < 24) return 'Last check-in: ${diff.inHours}h ago';
+      return 'Last check-in: ${diff.inDays}d ago';
+    } catch (_) {
+      return 'Last check-in: —';
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Header row: logo + settings icon
+// Safety status line
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SafetyStatusLine extends StatelessWidget {
+  const _SafetyStatusLine({required this.locationLabel});
+
+  final String locationLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const GhSafetyDot(),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            'You are safe • $locationLabel',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textBody,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Header: logo + GuardianHer + bell + avatar
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _Header extends StatelessWidget {
@@ -67,213 +130,136 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            color: AppTheme.violet.withValues(alpha: 0.15),
-            border: Border.all(
-              color: AppTheme.violet.withValues(alpha: 0.3),
-              width: 0.5,
-            ),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: Image.asset(
-              'assets/brand/logo.png',
-              fit: BoxFit.cover,
-            ),
+        const GhLogo(size: 48),
+        const SizedBox(width: 12),
+        Text(
+          'GuardianHer',
+          style: GoogleFonts.inter(
+            fontSize: 30,
+            fontWeight: FontWeight.w800,
+            color: AppTheme.guardianIndigo,
+            letterSpacing: -0.5,
           ),
         ),
         const Spacer(),
-        Container(
-          width: 48,
-          height: 48,
+        _HeaderIconButton(
+          icon: Icons.notifications_outlined,
+          onTap: () => context.push(AppRoutes.checkIn),
+        ),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: () => context.push(AppRoutes.profile),
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppTheme.lavenderSoft,
+              border: Border.all(color: AppTheme.lavenderMid, width: 2),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              'G',
+              style: GoogleFonts.inter(
+                color: AppTheme.guardianIndigo,
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(22),
+        child: Container(
+          width: 44,
+          height: 44,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: AppTheme.glassFill,
-            border: Border.all(
-              color: AppTheme.glassBorder,
-              width: 0.5,
-            ),
+            color: AppTheme.surfaceWhite,
+            border: Border.all(color: AppTheme.borderLight),
+            boxShadow: AppTheme.softShadow(opacity: 0.06),
           ),
-          child: IconButton(
-            icon: const Icon(Icons.settings_outlined, size: 22),
-            color: AppTheme.textSecondary,
-            onPressed: () => context.push(AppRoutes.settings),
-          ),
+          child: Icon(icon, size: 22, color: AppTheme.guardianIndigo),
         ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Greeting + status line
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _Greeting extends StatelessWidget {
-  const _Greeting();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'You\'re Safe',
-          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                color: AppTheme.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
-        ),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppTheme.successGreen,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.successGreen.withValues(alpha: 0.5),
-                    blurRadius: 8,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'Protection Active',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.successGreen,
-                    fontWeight: FontWeight.w500,
-                  ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SOS Button Section
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _SosSection extends ConsumerStatefulWidget {
-  const _SosSection();
-
-  @override
-  ConsumerState<_SosSection> createState() => _SosSectionState();
-}
-
-class _SosSectionState extends ConsumerState<_SosSection> {
-  bool _isArmed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: SosButton(
-        onPressed: _isArmed
-            ? () {}
-            : () {
-                setState(() => _isArmed = true);
-                ref.read(sosControllerProvider.notifier).startSos();
-                context.push(AppRoutes.sos).whenComplete(() {
-                  if (mounted) setState(() => _isArmed = false);
-                });
-              },
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Safety Status Card
+// Safety card with central SOS
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _SafetyStatusCard extends StatelessWidget {
-  const _SafetyStatusCard({required this.contactCount});
+class _SafetyCard extends ConsumerWidget {
+  const _SafetyCard({required this.lastCheckIn});
 
-  final int contactCount;
+  final String lastCheckIn;
 
   @override
-  Widget build(BuildContext context) {
-    return GlassCard(
-      elevated: true,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+  Widget build(BuildContext context, WidgetRef ref) {
+    return GhCard(
+      padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          PremiumSectionHeader(
-            title: 'Safety Status',
-            trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppTheme.successGreen.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Text(
-                'ACTIVE',
-                style: TextStyle(
-                  color: AppTheme.successGreen,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
-                ),
-              ),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: AppTheme.lavenderSoft,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(
+              Icons.shield_outlined,
+              size: 28,
+              color: AppTheme.guardianIndigo,
             ),
           ),
-          const SizedBox(height: 8),
-          const StatusIndicator(
-            label: 'Protection status',
-            level: StatusLevel.active,
-            trailing: Text('ON',
-                style: TextStyle(
-                    color: AppTheme.successGreen,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12)),
-          ),
-          const SizedBox(height: 10),
-          const StatusIndicator(
-            label: 'Location services',
-            level: StatusLevel.active,
-            trailing: Text('ON',
-                style: TextStyle(
-                    color: AppTheme.successGreen,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12)),
-          ),
-          const SizedBox(height: 10),
-          StatusIndicator(
-            label: 'Emergency contacts',
-            level: contactCount > 0
-                ? StatusLevel.active
-                : StatusLevel.warning,
-            trailing: Text(
-              '$contactCount connected',
-              style: TextStyle(
-                color: contactCount > 0
-                    ? AppTheme.successGreen
-                    : AppTheme.warningAmber,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-              ),
+          const SizedBox(height: 14),
+          Text(
+            'You are safe',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 30,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.guardianIndigo,
+              letterSpacing: -0.5,
             ),
           ),
-          const SizedBox(height: 10),
-          const StatusIndicator(
-            label: 'Device status',
-            level: StatusLevel.active,
-            trailing: Text('Secure',
-                style: TextStyle(
-                    color: AppTheme.successGreen,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12)),
+          const SizedBox(height: 6),
+          Text(
+            '$lastCheckIn • Safe area',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: AppTheme.textBody,
+            ),
+          ),
+          const SizedBox(height: 24),
+          GhSosButton(
+            onTap: () => context.push(AppRoutes.sos),
+            onHoldComplete: () {
+              ref.read(sosControllerProvider.notifier).startSos();
+              context.push(AppRoutes.sos);
+            },
           ),
         ],
       ),
@@ -282,44 +268,38 @@ class _SafetyStatusCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Quick Actions Grid
+// Quick actions (Share = existing flow; Fake Call + Record = deferred/Soon)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _QuickActionsGrid extends StatelessWidget {
-  const _QuickActionsGrid();
+class _QuickActionsRow extends StatelessWidget {
+  const _QuickActionsRow();
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 1.25,
+    return Row(
       children: [
-        QuickActionCard(
-          icon: Icons.share_location_outlined,
-          label: 'Share\nLocation',
-          onTap: () => context.push(AppRoutes.location),
+        Expanded(
+          child: GhQuickAction(
+            icon: Icons.radar_outlined,
+            label: 'Share Live\nLocation',
+            onTap: () => context.push(AppRoutes.location),
+          ),
         ),
-        QuickActionCard(
-          icon: Icons.timer_outlined,
-          label: 'Safety\nTimer',
-          color: AppTheme.infoCyan,
-          onTap: () => context.push(AppRoutes.checkInSettings),
+        const SizedBox(width: 12),
+        const Expanded(
+          child: GhQuickAction(
+            icon: Icons.phone_outlined,
+            label: 'Fake Call\nSoon',
+            enabled: false,
+          ),
         ),
-        QuickActionCard(
-          icon: Icons.people_outline,
-          label: 'Emergency\nContacts',
-          color: AppTheme.magenta,
-          onTap: () => context.push(AppRoutes.contacts),
-        ),
-        QuickActionCard(
-          icon: Icons.local_phone_outlined,
-          label: 'Emergency\nCall',
-          color: AppTheme.sosRed,
-          onTap: () => context.push(AppRoutes.sos),
+        const SizedBox(width: 12),
+        const Expanded(
+          child: GhQuickAction(
+            icon: Icons.mic_outlined,
+            label: 'Record Audio\nSoon',
+            enabled: false,
+          ),
         ),
       ],
     );
@@ -327,21 +307,124 @@ class _QuickActionsGrid extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Privacy Note
+// Trusted contacts (real data)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _PrivacyNote extends StatelessWidget {
-  const _PrivacyNote();
-
+class _TrustedContactsSection extends ConsumerWidget {
   @override
-  Widget build(BuildContext context) {
-    return Text(
-      'Your safety data is private and visible only to you.',
-      textAlign: TextAlign.center,
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: AppTheme.textMuted,
-            fontStyle: FontStyle.italic,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(contactsControllerProvider);
+    final contacts = switch (state) {
+      ContactsLoaded(:final contacts) => contacts,
+      _ => const <TrustedContact>[],
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Trusted Contacts',
+                style: GoogleFonts.inter(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.guardianIndigo,
+                ),
+              ),
+            ),
+            GestureDetector(
+              onTap: () => context.push(AppRoutes.contacts),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'See all',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.guardianIndigo,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  const Icon(
+                    Icons.chevron_right,
+                    size: 18,
+                    color: AppTheme.guardianIndigo,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (contacts.isEmpty)
+          GhCard(
+            onTap: () => context.push(AppRoutes.contactsAdd),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppTheme.lavenderSoft,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.person_add_outlined,
+                    color: AppTheme.guardianIndigo,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    'Add people who can be contacted\nduring an emergency.',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: AppTheme.textBody,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          SizedBox(
+            height: 132,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: contacts.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                final contact = contacts[index];
+                return GhContactCard(
+                  name: contact.name,
+                  onCall: () => _callContact(context, ref, contact),
+                  onTap: () => context.push(AppRoutes.contacts),
+                );
+              },
+            ),
           ),
+      ],
+    );
+  }
+
+  Future<void> _callContact(
+    BuildContext context,
+    WidgetRef ref,
+    TrustedContact contact,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await ref
+        .read(sosActionsControllerProvider.notifier)
+        .callContact(contact);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          result.fold((o) => o.message, (f) => f.message),
+        ),
+      ),
     );
   }
 }

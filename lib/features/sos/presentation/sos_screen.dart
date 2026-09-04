@@ -30,7 +30,7 @@ class SosScreen extends ConsumerWidget {
     ref.watch(sosActionsControllerProvider);
 
     return Scaffold(
-      backgroundColor: AppTheme.navyBase,
+      backgroundColor: AppTheme.appBackground,
       body: SafeArea(
         child: switch (state) {
           SosIdle() => _SosIdleView(
@@ -66,7 +66,7 @@ class _SosIdleView extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AmbientBackground(
-      centerGlowColor: AppTheme.sosRed,
+      centerGlowColor: AppTheme.sosCoral,
       centerGlowRadius: 180,
       child: Center(
         child: Padding(
@@ -80,7 +80,7 @@ class _SosIdleView extends StatelessWidget {
               Text(
                 'Emergency SOS',
                 style: theme.textTheme.headlineSmall?.copyWith(
-                  color: AppTheme.textPrimary,
+                  color: AppTheme.guardianIndigo,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -90,7 +90,7 @@ class _SosIdleView extends StatelessWidget {
                 'nothing is delayed.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.textSecondary,
+                  color: AppTheme.textBody,
                 ),
               ),
               const SizedBox(height: 48),
@@ -99,7 +99,7 @@ class _SosIdleView extends StatelessWidget {
                 style: FilledButton.styleFrom(
                   minimumSize: const Size(160, 160),
                   shape: const CircleBorder(),
-                  backgroundColor: AppTheme.sosRed,
+                  backgroundColor: AppTheme.sosCoral,
                   foregroundColor: Colors.white,
                   textStyle: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
@@ -140,14 +140,14 @@ class _SosActivatingView extends StatelessWidget {
               height: 64,
               child: CircularProgressIndicator(
                 strokeWidth: 4,
-                color: AppTheme.sosRed,
+                color: AppTheme.sosCoral,
               ),
             ),
             const SizedBox(height: 24),
             Text(
               'Activating SOS…',
               style: theme.textTheme.titleMedium?.copyWith(
-                color: AppTheme.textPrimary,
+                color: AppTheme.guardianIndigo,
               ),
             ),
           ],
@@ -179,10 +179,10 @@ class _SosActiveView extends ConsumerWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Color(0xFF2D0A12),
-            AppTheme.navyBase,
+            Color(0xFFFFE9E5),
+            AppTheme.appBackground,
           ],
-          stops: [0.0, 0.3],
+          stops: [0.0, 0.35],
         ),
       ),
       child: Padding(
@@ -192,12 +192,12 @@ class _SosActiveView extends ConsumerWidget {
           children: [
             // Active status banner
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: AppTheme.sosRed.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
+                color: AppTheme.sosCoral.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: AppTheme.sosRed.withValues(alpha: 0.4),
+                  color: AppTheme.sosCoral.withValues(alpha: 0.35),
                 ),
               ),
               child: Row(
@@ -207,10 +207,10 @@ class _SosActiveView extends ConsumerWidget {
                     height: 10,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: AppTheme.sosRed,
+                      color: AppTheme.sosCoral,
                       boxShadow: [
                         BoxShadow(
-                          color: AppTheme.sosRed.withValues(alpha: 0.5),
+                          color: AppTheme.sosCoral.withValues(alpha: 0.5),
                           blurRadius: 8,
                         ),
                       ],
@@ -220,7 +220,7 @@ class _SosActiveView extends ConsumerWidget {
                   Text(
                     'SOS ACTIVE',
                     style: theme.textTheme.headlineSmall?.copyWith(
-                      color: AppTheme.sosRed,
+                      color: AppTheme.sosCoral,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.2,
                     ),
@@ -233,7 +233,7 @@ class _SosActiveView extends ConsumerWidget {
               'Emergency SMS are being sent to your guardians automatically.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppTheme.textSecondary,
+                color: AppTheme.textBody,
               ),
             ),
             const SizedBox(height: 8),
@@ -245,7 +245,7 @@ class _SosActiveView extends ConsumerWidget {
                   'Incident: ${emergency.incidentId!.substring(0, 8)}…',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textMuted,
+                    color: AppTheme.textFaint,
                     fontFamily: 'monospace',
                   ),
                 ),
@@ -307,7 +307,7 @@ class _SosActiveView extends ConsumerWidget {
               label: const Text('End SOS'),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(48),
-                backgroundColor: AppTheme.sosRed,
+                backgroundColor: AppTheme.sosCoral,
                 foregroundColor: Colors.white,
               ),
             ),
@@ -348,7 +348,7 @@ class _StatusLine extends StatelessWidget {
         fragments.join(' · '),
         textAlign: TextAlign.center,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppTheme.textMuted,
+              color: AppTheme.textFaint,
             ),
       ),
     );
@@ -376,7 +376,7 @@ class _EmergencyVehicleSection extends ConsumerWidget {
             Text(
               'Vehicle: ${vehicle.type.label}',
               style: const TextStyle(
-                color: AppTheme.textLavender,
+                color: AppTheme.guardianIndigo,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -386,7 +386,7 @@ class _EmergencyVehicleSection extends ConsumerWidget {
                 child: SelectableText(
                   reg,
                   style: const TextStyle(
-                    color: AppTheme.textPrimary,
+                    color: AppTheme.guardianIndigo,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
@@ -429,14 +429,14 @@ class _SosLocationSection extends ConsumerWidget {
                   height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: AppTheme.violetLight,
+                    color: AppTheme.guardianIndigo,
                   ),
                 )
               else
                 Icon(
                   _statusIcon(location),
                   size: 16,
-                  color: AppTheme.textMuted,
+                  color: AppTheme.textFaint,
                 ),
               const SizedBox(width: 6),
               Flexible(
@@ -444,7 +444,7 @@ class _SosLocationSection extends ConsumerWidget {
                   primary ?? '',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.textMuted,
+                        color: AppTheme.textFaint,
                       ),
                 ),
               ),
@@ -456,7 +456,7 @@ class _SosLocationSection extends ConsumerWidget {
               secondary,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textMuted,
+                    color: AppTheme.textFaint,
                   ),
             ),
           ],
@@ -469,7 +469,7 @@ class _SosLocationSection extends ConsumerWidget {
                 'Location: ${buildMapsShareUrl(point)}',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppTheme.violetLight,
+                      color: AppTheme.guardianIndigo,
                       decoration: TextDecoration.underline,
                     ),
               ),
@@ -581,7 +581,7 @@ class _ContactsSection extends ConsumerWidget {
           'message them from here.',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppTheme.textSecondary,
+                color: AppTheme.textBody,
               ),
         ),
       );
@@ -598,11 +598,11 @@ class _ContactsSection extends ConsumerWidget {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundColor: AppTheme.violet.withValues(alpha: 0.2),
+                backgroundColor: AppTheme.lavenderMid.withValues(alpha: 0.2),
                 child: Text(
                   contact.name.isNotEmpty ? contact.name[0].toUpperCase() : '?',
                   style: const TextStyle(
-                    color: AppTheme.violetLight,
+                    color: AppTheme.guardianIndigo,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -615,14 +615,14 @@ class _ContactsSection extends ConsumerWidget {
                     Text(
                       contact.name,
                       style: const TextStyle(
-                        color: AppTheme.textPrimary,
+                        color: AppTheme.guardianIndigo,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                     Text(
                       _maskPhone(contact.phoneNumber),
                       style: const TextStyle(
-                        color: AppTheme.textMuted,
+                        color: AppTheme.textFaint,
                         fontSize: 12,
                       ),
                     ),
@@ -638,7 +638,7 @@ class _ContactsSection extends ConsumerWidget {
                 tooltip: 'Message ${contact.name}',
                 onPressed: () => onMessage(contact),
                 icon: const Icon(Icons.message_outlined,
-                    color: AppTheme.violetLight),
+                    color: AppTheme.guardianIndigo),
               ),
             ],
           ),
@@ -679,14 +679,14 @@ class _EmergencySmsSection extends StatelessWidget {
                   Icons.sms_outlined,
                   size: 16,
                   color: emergency.errorMessage != null
-                      ? AppTheme.sosRed
-                      : AppTheme.violetLight,
+                      ? AppTheme.sosCoral
+                      : AppTheme.guardianIndigo,
                 ),
                 const SizedBox(width: 6),
                 Text(
                   'Emergency SMS',
                   style: theme.textTheme.labelLarge?.copyWith(
-                    color: AppTheme.textPrimary,
+                    color: AppTheme.guardianIndigo,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -695,7 +695,7 @@ class _EmergencySmsSection extends StatelessWidget {
                   Text(
                     '🔋 ${emergency.batteryPercentage}%',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppTheme.textMuted,
+                      color: AppTheme.textFaint,
                     ),
                   ),
               ],
@@ -705,7 +705,7 @@ class _EmergencySmsSection extends StatelessWidget {
               Text(
                 emergency.errorMessage!,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppTheme.sosRed,
+                  color: AppTheme.sosCoral,
                 ),
               ),
             ],
@@ -714,7 +714,7 @@ class _EmergencySmsSection extends StatelessWidget {
               Text(
                 emergency.locationStatusMessage!,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppTheme.textMuted,
+                  color: AppTheme.textFaint,
                 ),
               ),
             ],
@@ -729,7 +729,7 @@ class _EmergencySmsSection extends StatelessWidget {
                       child: Text(
                         guardian.contactName,
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.textPrimary,
+                          color: AppTheme.guardianIndigo,
                         ),
                       ),
                     ),
@@ -750,7 +750,7 @@ class _EmergencySmsSection extends StatelessWidget {
           height: 16,
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: AppTheme.textMuted,
+            color: AppTheme.textFaint,
           ),
         ),
       GuardianDeliveryStatus.sending => const SizedBox(
@@ -758,7 +758,7 @@ class _EmergencySmsSection extends StatelessWidget {
           height: 16,
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: AppTheme.violetLight,
+            color: AppTheme.guardianIndigo,
           ),
         ),
       GuardianDeliveryStatus.sent => const Icon(
@@ -769,14 +769,14 @@ class _EmergencySmsSection extends StatelessWidget {
       GuardianDeliveryStatus.failed => const Icon(
           Icons.error_outline,
           size: 16,
-          color: AppTheme.sosRed,
+          color: AppTheme.sosCoral,
         ),
       GuardianDeliveryStatus.retrying => SizedBox(
           width: 16,
           height: 16,
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: AppTheme.sosRed.withValues(alpha: 0.7),
+            color: AppTheme.sosCoral.withValues(alpha: 0.7),
           ),
         ),
     };
@@ -792,8 +792,8 @@ class _EmergencySmsSection extends StatelessWidget {
     };
     final color = switch (status) {
       GuardianDeliveryStatus.sent => AppTheme.successGreen,
-      GuardianDeliveryStatus.failed => AppTheme.sosRed,
-      _ => AppTheme.textMuted,
+      GuardianDeliveryStatus.failed => AppTheme.sosCoral,
+      _ => AppTheme.textFaint,
     };
     return Text(
       text,
@@ -823,14 +823,14 @@ class _SosCancellingView extends StatelessWidget {
               height: 48,
               child: CircularProgressIndicator(
                 strokeWidth: 3,
-                color: AppTheme.sosRed,
+                color: AppTheme.sosCoral,
               ),
             ),
             const SizedBox(height: 24),
             Text(
               'Stopping SOS…',
               style: theme.textTheme.titleMedium?.copyWith(
-                color: AppTheme.textPrimary,
+                color: AppTheme.guardianIndigo,
               ),
             ),
           ],
@@ -881,7 +881,7 @@ class _SosCompletedView extends StatelessWidget {
             Text(
               'SOS session ended',
               style: theme.textTheme.headlineSmall?.copyWith(
-                color: AppTheme.textPrimary,
+                color: AppTheme.guardianIndigo,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -890,7 +890,7 @@ class _SosCompletedView extends StatelessWidget {
               'Return to start a new session whenever you need help.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppTheme.textSecondary,
+                color: AppTheme.textBody,
               ),
             ),
             const SizedBox(height: 36),
@@ -898,8 +898,8 @@ class _SosCompletedView extends StatelessWidget {
               onPressed: onDismiss,
               style: FilledButton.styleFrom(
                 minimumSize: const Size(200, 48),
-                backgroundColor: AppTheme.violet,
-                foregroundColor: AppTheme.textPrimary,
+                backgroundColor: AppTheme.guardianIndigo,
+                foregroundColor: AppTheme.guardianIndigo,
               ),
               child: const Text('OK'),
             ),

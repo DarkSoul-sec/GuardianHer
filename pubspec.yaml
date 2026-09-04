@@ -14,6 +14,7 @@ dependencies:
   # Localization
   flutter_localizations:
     sdk: flutter
+  intl: ^0.20.3
 
   # State management and dependency injection.
   flutter_riverpod: ^2.6.1
@@ -40,12 +41,11 @@ dependencies:
   package_info_plus: ^10.2.1
   flutter_local_notifications: ^22.3.0
   vibration: ^3.2.0
+  google_fonts: ^6.2.1
   # Android home-screen widget glue: renders a launcher widget whose tap opens
   # the app and deep-links to the SOS flow. No background location/services.
   home_widget: ^0.9.3
-  # Plain HTTP client for the Phase 3J live-location backend (BSD-3). No
-  # proprietary SDK: the same client works for F-Droid builds.
-  http: ^1.2.0
+  
   # Required for @immutable annotation
   meta: ^1.15.0
 
