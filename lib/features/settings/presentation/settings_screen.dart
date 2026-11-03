@@ -87,8 +87,6 @@ class SettingsScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push(AppRoutes.privacyPolicy),
           ),
-          // Debug section — only visible in debug builds.
-          const _DebugSection(),
         ],
       ),
     );
@@ -188,29 +186,3 @@ class _DeleteDataTile extends ConsumerWidget {
   }
 }
 
-/// Debug-only section for testing SMS and location on device.
-/// Only visible in debug builds.
-class _DebugSection extends ConsumerWidget {
-  const _DebugSection();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // Only show in debug mode.
-    if (!const bool.fromEnvironment('dart.vm.product')) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SettingsSectionHeader(title: 'Debug'),
-          ListTile(
-            leading: const Icon(Icons.bug_report_outlined, color: Colors.orange),
-            title: const Text('SMS Debug Test'),
-            subtitle: const Text('Send a test SMS via SmsManager directly'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).pushNamed('/sms-debug'),
-          ),
-        ],
-      );
-    }
-    return const SizedBox.shrink();
-  }
-}

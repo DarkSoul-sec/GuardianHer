@@ -38,6 +38,15 @@ class FakeShareService implements ShareService {
     shared.add(text);
     return const Ok(null);
   }
+
+  @override
+  Future<Result<void>> shareFile(String filePath) async {
+    if (unavailable) {
+      return const Err(ShareUnavailableFailure());
+    }
+    shared.add(filePath);
+    return const Ok(null);
+  }
 }
 
 void main() {

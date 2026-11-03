@@ -9,6 +9,10 @@
          system SMS composer. Runtime permission is requested on-demand when
          SOS activates; denied permission is handled gracefully (SMS skipped). -->
     <uses-permission android:name="android.permission.SEND_SMS"/>
+    <!-- Explicit user-initiated voice notes only (Voice Recordings screen).
+         Requested in context with an in-app explanation; never used in the
+         background, never for calls, never transmitted anywhere. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <!-- Needed by TelephonyManager.getSimState() on API 29+ to return the
          correct SIM state during the pre-SMS readiness check. Normal
          auto-granted install-time permission. -->

@@ -19,6 +19,11 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Short-lived foreground service that sends emergency SMS to all guardians.
  *
+ * CORE SAFETY FUNCTION: SEND_SMS exists solely for this service. Automatic
+ * dispatch on a validly armed SOS (button/shake/tile/widget) to the user's
+ * own selected emergency contacts is the app's primary purpose — it must
+ * never be replaced with a manual composer or gated behind extra taps.
+ *
  * Lifecycle:
  *   1. Flutter calls `startEmergency` via MethodChannel.
  *   2. MainActivity creates an Intent and calls [startForegroundService].

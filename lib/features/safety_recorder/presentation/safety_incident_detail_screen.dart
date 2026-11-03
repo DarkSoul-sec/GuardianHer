@@ -25,7 +25,7 @@ class SafetyIncidentDetailScreen extends ConsumerWidget {
     final verified = incident.verifyIntegrity();
 
     return Scaffold(
-      backgroundColor: AppTheme.navyBase,
+      backgroundColor: AppTheme.appBackground,
       appBar: AppBar(
         title: const Text('Incident Details'),
         leading: IconButton(
@@ -35,7 +35,7 @@ class SafetyIncidentDetailScreen extends ConsumerWidget {
         actions: [
           if (!incident.isActive)
             IconButton(
-              icon: const Icon(Icons.delete_outline, color: AppTheme.sosRed),
+              icon: const Icon(Icons.delete_outline, color: AppTheme.sosCoral),
               onPressed: () => _confirmDelete(context, ref),
             ),
         ],
@@ -62,7 +62,7 @@ class SafetyIncidentDetailScreen extends ConsumerWidget {
 
   Widget _buildHeader(BuildContext context, bool verified) {
     final statusColor = incident.isActive
-        ? AppTheme.sosRed
+        ? AppTheme.sosCoral
         : (verified ? AppTheme.successGreen : AppTheme.warningAmber);
 
     return GlassCard(
@@ -84,7 +84,7 @@ class SafetyIncidentDetailScreen extends ConsumerWidget {
                 child: Text(
                   _formatDateTime(incident.createdAt),
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: AppTheme.textPrimary,
+                    color: AppTheme.guardianIndigo,
                   ),
                 ),
               ),
@@ -95,7 +95,7 @@ class SafetyIncidentDetailScreen extends ConsumerWidget {
             Text(
               'Ended: ${_formatDateTime(incident.endedAt!)}',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.textSecondary,
+                color: AppTheme.textBody,
               ),
             ),
           ],
@@ -130,12 +130,12 @@ class SafetyIncidentDetailScreen extends ConsumerWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.directions_car, color: AppTheme.violetLight, size: 20),
+              const Icon(Icons.directions_car, color: AppTheme.guardianIndigo, size: 20),
               const SizedBox(width: 8),
               Text(
                 'Vehicle Information',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppTheme.textPrimary,
+                  color: AppTheme.guardianIndigo,
                 ),
               ),
             ],
@@ -144,7 +144,7 @@ class SafetyIncidentDetailScreen extends ConsumerWidget {
           Text(
             'Type: ${incident.vehicleType!.label}',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppTheme.textSecondary,
+              color: AppTheme.textBody,
             ),
           ),
           if (incident.hasVehicleRegistration) ...[
@@ -152,7 +152,7 @@ class SafetyIncidentDetailScreen extends ConsumerWidget {
             Text(
               'Registration recorded (redacted)',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.textLavender,
+                color: AppTheme.textBody,
               ),
             ),
           ],
@@ -177,7 +177,7 @@ class SafetyIncidentDetailScreen extends ConsumerWidget {
               Text(
                 'Integrity',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppTheme.textPrimary,
+                  color: AppTheme.guardianIndigo,
                 ),
               ),
             ],
@@ -188,14 +188,14 @@ class SafetyIncidentDetailScreen extends ConsumerWidget {
                 ? 'The event chain is intact and tamper-evident. All hashes match from genesis to the final event.'
                 : 'Integrity could not be verified. The event chain may be incomplete.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppTheme.textSecondary,
+              color: AppTheme.textBody,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'Genesis: ${incident.genesisHash.substring(0, 16)}…',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppTheme.textMuted,
+              color: AppTheme.textFaint,
               fontFamily: 'monospace',
             ),
           ),
@@ -204,7 +204,7 @@ class SafetyIncidentDetailScreen extends ConsumerWidget {
             Text(
               'Chain length: ${incident.hashes.length}',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.textMuted,
+                color: AppTheme.textFaint,
                 fontFamily: 'monospace',
               ),
             ),
@@ -221,7 +221,7 @@ class SafetyIncidentDetailScreen extends ConsumerWidget {
         Text(
           'Event Timeline',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: AppTheme.textPrimary,
+            color: AppTheme.guardianIndigo,
           ),
         ),
         const SizedBox(height: 16),
@@ -242,14 +242,14 @@ class SafetyIncidentDetailScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.navyElevated,
+        backgroundColor: AppTheme.surfaceWhite,
         title: const Text(
           'Delete Incident',
-          style: TextStyle(color: AppTheme.textPrimary),
+          style: TextStyle(color: AppTheme.guardianIndigo),
         ),
         content: const Text(
           'This incident will be permanently deleted. This action cannot be undone.',
-          style: TextStyle(color: AppTheme.textSecondary),
+          style: TextStyle(color: AppTheme.textBody),
         ),
         actions: [
           TextButton(
@@ -264,7 +264,7 @@ class SafetyIncidentDetailScreen extends ConsumerWidget {
             },
             child: const Text(
               'Delete',
-              style: TextStyle(color: AppTheme.sosRed),
+              style: TextStyle(color: AppTheme.sosCoral),
             ),
           ),
         ],
@@ -294,10 +294,10 @@ class _StatChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: AppTheme.glassFill,
+          color: AppTheme.appBackgroundMuted,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: AppTheme.glassBorder.withValues(alpha: 0.1),
+            color: AppTheme.borderLight,
             width: 0.5,
           ),
         ),
@@ -306,7 +306,7 @@ class _StatChip extends StatelessWidget {
             Text(
               label,
               style: const TextStyle(
-                color: AppTheme.textPrimary,
+                color: AppTheme.guardianIndigo,
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
               ),
@@ -315,7 +315,7 @@ class _StatChip extends StatelessWidget {
             Text(
               subtitle,
               style: const TextStyle(
-                color: AppTheme.textMuted,
+                color: AppTheme.textFaint,
                 fontSize: 10,
               ),
             ),
@@ -357,7 +357,7 @@ class _TimelineEvent extends StatelessWidget {
                   Expanded(
                     child: Container(
                       width: 1,
-                      color: AppTheme.glassBorder.withValues(alpha: 0.2),
+                      color: AppTheme.borderLight,
                     ),
                   ),
               ],
@@ -373,7 +373,7 @@ class _TimelineEvent extends StatelessWidget {
                   Text(
                     _eventTypeLabel(event.eventType),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.textPrimary,
+                      color: AppTheme.guardianIndigo,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -381,7 +381,7 @@ class _TimelineEvent extends StatelessWidget {
                   Text(
                     _formatTime(event.occurredAt),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppTheme.textMuted,
+                      color: AppTheme.textFaint,
                     ),
                   ),
                 ],
@@ -395,10 +395,10 @@ class _TimelineEvent extends StatelessWidget {
 
   Color _colorForCategory(SafetyEventCategory category) {
     return switch (category) {
-      SafetyEventCategory.sos => AppTheme.sosRed,
-      SafetyEventCategory.journey => AppTheme.violetLight,
+      SafetyEventCategory.sos => AppTheme.sosCoral,
+      SafetyEventCategory.journey => AppTheme.lavenderDeep,
       SafetyEventCategory.location => AppTheme.infoCyan,
-      SafetyEventCategory.communication => AppTheme.magenta,
+      SafetyEventCategory.communication => AppTheme.infoCyan,
       SafetyEventCategory.session => AppTheme.successGreen,
       SafetyEventCategory.checkIn => AppTheme.warningAmber,
     };

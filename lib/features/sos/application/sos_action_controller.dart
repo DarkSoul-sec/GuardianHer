@@ -28,6 +28,15 @@ import 'sos_providers.dart';
 import 'sos_state.dart';
 import 'sos_tile_state.dart';
 
+
+/// Release-safe logging: diagnostic output only, never in production builds.
+/// Call sites log metadata (counts, states, durations) — never phone numbers,
+/// message bodies, coordinates, names, or file contents.
+void _log(String message) {
+  if (kDebugMode) debugPrint(message);
+}
+
+
 /// Coordinates SOS side effects without touching [SosController] or the
 /// [SosStateMachine].
 ///
@@ -514,7 +523,7 @@ class SosActionController extends Notifier<SosActionsState> {
             ));
           }
         } catch (e) {
-          debugPrint('[SOS] WhatsApp error: $e');
+          _log('[SOS] WhatsApp error: $e');
           return const Err(InvalidSosContactFailure(
             message: 'Failed to open WhatsApp.',
           ));

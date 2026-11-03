@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:guardianher/core/error/failures.dart';
 import 'package:guardianher/core/permissions/permission_service.dart';
 import 'package:guardianher/core/platform/app_info_service.dart';
 import 'package:guardianher/core/platform/device_admin_service.dart';
@@ -25,8 +26,13 @@ import 'package:guardianher/features/check_in/domain/check_in_message_sender.dar
 import 'package:guardianher/features/check_in/domain/check_in_scheduler.dart';
 import 'package:guardianher/features/check_in/domain/check_in_settings.dart';
 import 'package:guardianher/features/check_in/domain/check_in_settings_repository.dart';
+import 'package:guardianher/features/fake_call/application/fake_call_providers.dart';
+import 'package:guardianher/features/fake_call/domain/fake_call_alert.dart';
 import 'package:guardianher/features/location/domain/location_failures.dart';
 import 'package:guardianher/features/location/domain/location_point.dart';
+import 'package:guardianher/features/voice_recording/application/voice_recording_providers.dart';
+import 'package:guardianher/features/voice_recording/data/voice_recording_repository.dart';
+import 'package:guardianher/features/voice_recording/domain/voice_recorder.dart';
 
 /// In-memory [SecureStorageService] for tests.
 class FakeSecureStorageService implements SecureStorageService {
@@ -174,6 +180,9 @@ class TestSosTileStateService implements SosTileStateService {
 /// [PermissionService] fake backed by a mutable status map.
 class FakePermissionService implements PermissionService {
   final Map<AppPermission, PermissionStatus> statuses = {};
+
+  /// Scripted request outcomes; when absent the request grants.
+  final Map<AppPermission, PermissionStatus> requestResults = {};
   int openSettingsCalls = 0;
 
   @override
@@ -181,8 +190,13 @@ class FakePermissionService implements PermissionService {
       statuses[permission] ?? PermissionStatus.denied;
 
   @override
-  Future<PermissionStatus> request(AppPermission permission) async =>
-      statuses[permission] = PermissionStatus.granted;
+  Future<PermissionStatus> request(AppPermission permission) async {
+    final scripted = requestResults[permission];
+    if (scripted != null) {
+      return statuses[permission] = scripted;
+    }
+    return statuses[permission] = PermissionStatus.granted;
+  }
 
   @override
   Future<void> openSettings() async {
@@ -319,8 +333,164 @@ List<Override> defaultOverrides({
     whatsappServiceProvider.overrideWithValue(FakeWhatsAppService()),
     directSmsServiceProvider.overrideWithValue(FakeDirectSmsService()),
     nativeEmergencySmsBridgeProvider.overrideWithValue(FakeNativeEmergencySmsBridge()),
+    // Fake-call seams: keep every test off the ringtone/notification channels.
+    fakeCallAlertServiceProvider.overrideWithValue(FakeFakeCallAlert()),
+    fakeCallNotifierProvider.overrideWithValue(FakeFakeCallNotifier()),
+    // Voice-recording seams: keep every test off mic/storage/audio channels.
+    voiceRecorderProvider.overrideWithValue(FakeVoiceRecorder()),
+    voiceRecordingRepositoryProvider.overrideWithValue(
+      FakeVoiceRecordingRepository(),
+    ),
     ...overrides,
   ];
+}
+
+/// [VoiceRecorder] fake with scriptable outcomes.
+class FakeVoiceRecorder implements VoiceRecorder {
+  bool startResult = true;
+  bool stopResult = true;
+  int startCalls = 0;
+  int stopCalls = 0;
+  int cancelCalls = 0;
+  int disposeCalls = 0;
+  String? lastPath;
+
+  @override
+  Future<bool> start(String outputPath) async {
+    startCalls++;
+    lastPath = outputPath;
+    return startResult;
+  }
+
+  @override
+  Future<Duration?> stop() async {
+    stopCalls++;
+    return stopResult ? Duration.zero : null;
+  }
+
+  @override
+  Future<void> cancel() async {
+    cancelCalls++;
+  }
+
+  @override
+  Future<void> dispose() async {
+    disposeCalls++;
+  }
+}
+
+/// In-memory [VoiceRecordingRepository] fake.
+class FakeVoiceRecordingRepository implements VoiceRecordingRepository {
+  FakeVoiceRecordingRepository([List<VoiceRecording>? seed])
+      : _recordings = List.of(seed ?? []);
+
+  final List<VoiceRecording> _recordings;
+
+  @override
+  Future<Result<List<VoiceRecording>>> loadAll() async =>
+      Ok(_sorted(_recordings));
+
+  @override
+  Future<Result<VoiceRecording>> save(VoiceRecording recording) async {
+    _recordings.removeWhere((r) => r.id == recording.id);
+    _recordings.add(recording);
+    return Ok(recording);
+  }
+
+  @override
+  Future<Result<VoiceRecording>> rename({
+    required String id,
+    required String displayName,
+  }) async {
+    final index = _recordings.indexWhere((r) => r.id == id);
+    if (index < 0) {
+      return const Err(StorageFailure('The recording was not found.'));
+    }
+    final updated = VoiceRecording(
+      id: _recordings[index].id,
+      path: _recordings[index].path,
+      createdAt: _recordings[index].createdAt,
+      duration: _recordings[index].duration,
+      displayName: displayName,
+    );
+    _recordings[index] = updated;
+    return Ok(updated);
+  }
+
+  @override
+  Future<Result<void>> delete(String id) async {
+    _recordings.removeWhere((r) => r.id == id);
+    return const Ok(null);
+  }
+
+  @override
+  Future<Result<void>> deleteAll() async {
+    _recordings.clear();
+    return const Ok(null);
+  }
+
+  @override
+  Future<({String path, String displayName})> nextRecordingTarget({
+    required DateTime now,
+  }) async =>
+      (
+        path: '/tmp/rec_${now.millisecondsSinceEpoch}.m4a',
+        displayName: 'Recording - test',
+      );
+
+  static List<VoiceRecording> _sorted(List<VoiceRecording> recordings) {
+    final sorted = List<VoiceRecording>.of(recordings)
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return sorted;
+  }
+}
+
+/// [FakeCallAlertService] fake recording start/stop transitions.
+class FakeFakeCallAlert implements FakeCallAlertService {
+  int startCalls = 0;
+  int stopCalls = 0;
+  bool? lastVibrate;
+
+  @override
+  Future<void> startAlert({required bool vibrate}) async {
+    startCalls++;
+    lastVibrate = vibrate;
+  }
+
+  @override
+  Future<void> stopAlert() async {
+    stopCalls++;
+  }
+}
+
+/// [FakeCallNotifier] fake recording schedule/show/cancel calls.
+class FakeFakeCallNotifier implements FakeCallNotifier {
+  int scheduleCalls = 0;
+  int showCalls = 0;
+  int cancelCalls = 0;
+  String? lastCallerName;
+  DateTime? lastFireAt;
+
+  @override
+  Future<void> scheduleIncomingCall({
+    required String callerName,
+    required DateTime fireAt,
+  }) async {
+    scheduleCalls++;
+    lastCallerName = callerName;
+    lastFireAt = fireAt;
+  }
+
+  @override
+  Future<void> showIncomingCallNow({required String callerName}) async {
+    showCalls++;
+    lastCallerName = callerName;
+  }
+
+  @override
+  Future<void> cancelIncomingCall() async {
+    cancelCalls++;
+  }
 }
 
 /// In-memory [CheckInSettingsRepository] for tests.
@@ -401,6 +571,12 @@ class FakeShareService implements ShareService {
   @override
   Future<Result<void>> shareText(String text) async {
     shared.add(text);
+    return result ?? const Ok(null);
+  }
+
+  @override
+  Future<Result<void>> shareFile(String filePath) async {
+    shared.add(filePath);
     return result ?? const Ok(null);
   }
 }

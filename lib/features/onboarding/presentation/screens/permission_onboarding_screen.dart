@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 
+import 'package:guardianher/app/router/app_router.dart';
 import 'package:guardianher/core/platform/shake_sos_service.dart';
 import 'package:guardianher/core/routing/route_guards.dart';
 import 'package:guardianher/app/theme/app_theme.dart';
 import 'package:guardianher/features/onboarding/application/permission_onboarding_providers.dart';
 import 'package:guardianher/features/onboarding/application/permission_onboarding_notifier.dart';
 import 'package:guardianher/features/shake/application/shake_sos_providers.dart';
+import 'package:guardianher/shared/widgets/guardianher_design.dart';
 
 class PermissionOnboardingScreen extends ConsumerStatefulWidget {
   const PermissionOnboardingScreen({super.key});
@@ -31,14 +34,14 @@ class _PermissionOnboardingScreenState extends ConsumerState<PermissionOnboardin
     final notifier = ref.read(permissionOnboardingNotifierProvider.notifier);
 
     return Scaffold(
-      backgroundColor: AppTheme.navyBase,
+      backgroundColor: AppTheme.appBackground,
       body: SafeArea(
         child: Column(
           children: [
             _ProgressHeader(state: state),
             Expanded(
               child: ListView.builder(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
                 itemCount: state.items.length,
                 itemBuilder: (context, index) {
                   final item = state.items[index];
@@ -56,7 +59,7 @@ class _PermissionOnboardingScreenState extends ConsumerState<PermissionOnboardin
               enabled: state.criticalPermissionsGranted,
               onPressed: () async {
                 await RouteGuards.setOnboardingDone();
-                if (context.mounted) context.go('/home');
+                if (context.mounted) context.go(AppRoutes.home);
               },
             ),
           ],
@@ -78,39 +81,52 @@ class _ProgressHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Permissions Setup',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: AppTheme.textPrimary,
-                  fontWeight: FontWeight.w700,
+          Row(
+            children: [
+              const GhLogo(size: 40),
+              const SizedBox(width: 12),
+              Text(
+                'Permissions Setup',
+                style: GoogleFonts.inter(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.guardianIndigo,
                 ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           Text(
             'Grant permissions to enable all safety features',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.textSecondary,
-                ),
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: AppTheme.textBody,
+            ),
           ),
           const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
-                child: LinearProgressIndicator(
-                  value: state.progress,
-                  minHeight: 8,
-                  borderRadius: BorderRadius.circular(4),
-                  backgroundColor: AppTheme.surfaceVariant,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppTheme.violet),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: state.progress,
+                    minHeight: 8,
+                    backgroundColor: AppTheme.lavenderSoft,
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppTheme.guardianIndigo,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
               Text(
                 '${state.grantedCount}/${state.totalCount}',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppTheme.violet,
-                      fontWeight: FontWeight.w600,
-                    ),
+                style: GoogleFonts.inter(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.guardianIndigo,
+                ),
               ),
             ],
           ),
@@ -137,31 +153,21 @@ class _PermissionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: item.isGranted
-            ? AppTheme.violet.withValues(alpha: 0.15)
-            : isCurrent
-                ? AppTheme.surfaceVariant.withValues(alpha: 0.5)
-                : AppTheme.surfaceVariant,
-        borderRadius: BorderRadius.circular(16),
+        color: AppTheme.surfaceWhite,
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
           color: item.isGranted
-              ? AppTheme.violet
+              ? AppTheme.successGreen.withValues(alpha: 0.5)
               : isCurrent
-                  ? AppTheme.violet.withValues(alpha: 0.5)
-                  : AppTheme.glowDivider,
-          width: item.isGranted ? 2 : 1,
+                  ? AppTheme.lavenderDeep
+                  : AppTheme.borderLight,
+          width: item.isGranted ? 1.5 : 1,
         ),
-        boxShadow: item.isGranted || isCurrent
-            ? [
-                BoxShadow(
-                  color: AppTheme.violet.withValues(alpha: 0.1),
-                  blurRadius: 12,
-                  spreadRadius: 0,
-                ),
-              ]
-            : null,
+        boxShadow: AppTheme.softShadow(
+          opacity: item.isGranted || isCurrent ? 0.12 : 0.07,
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -179,25 +185,29 @@ class _PermissionCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           item.title,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                color: AppTheme.textPrimary,
-                                fontWeight: FontWeight.w600,
-                              ),
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.guardianIndigo,
+                          ),
                         ),
                       ),
                       if (item.isCritical)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: AppTheme.violet.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(12),
+                            color: AppTheme.sosCoral.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             'REQUIRED',
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                  color: AppTheme.violet,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.6,
+                              color: AppTheme.sosCoral,
+                            ),
                           ),
                         ),
                     ],
@@ -205,9 +215,10 @@ class _PermissionCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     item.description,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.textSecondary,
-                        ),
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: AppTheme.textBody,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   _ActionButtons(
@@ -237,12 +248,12 @@ class _StatusIcon extends StatelessWidget {
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: AppTheme.violet.withValues(alpha: 0.2),
-          shape: BoxShape.circle,
+          color: AppTheme.successGreen.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: const Icon(
           Icons.check_rounded,
-          color: AppTheme.violet,
+          color: AppTheme.successGreenDark,
           size: 24,
         ),
       );
@@ -253,8 +264,8 @@ class _StatusIcon extends StatelessWidget {
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: AppTheme.violet.withValues(alpha: 0.1),
-          shape: BoxShape.circle,
+          color: AppTheme.lavenderSoft,
+          borderRadius: BorderRadius.circular(16),
         ),
         child: const Center(
           child: SizedBox(
@@ -262,7 +273,9 @@ class _StatusIcon extends StatelessWidget {
             height: 24,
             child: CircularProgressIndicator(
               strokeWidth: 2.5,
-              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.violet),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                AppTheme.guardianIndigo,
+              ),
             ),
           ),
         ),
@@ -273,8 +286,8 @@ class _StatusIcon extends StatelessWidget {
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        color: AppTheme.violet.withValues(alpha: 0.1),
-        shape: BoxShape.circle,
+        color: AppTheme.lavenderSoft,
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Center(
         child: Text(
@@ -305,18 +318,19 @@ class _ActionButtons extends ConsumerWidget {
       if (item.isGranted) {
         return Row(
           children: [
-            Icon(
+            const Icon(
               Icons.check_circle_rounded,
-              color: AppTheme.violet,
+              color: AppTheme.successGreenDark,
               size: 20,
             ),
             const SizedBox(width: 8),
             Text(
               'Enabled',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.violet,
-                    fontWeight: FontWeight.w600,
-                  ),
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                color: AppTheme.successGreenDark,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(width: 12),
             Switch(
@@ -326,10 +340,11 @@ class _ActionButtons extends ConsumerWidget {
                       .read(shakeSosEnabledProvider.notifier)
                       .setEnabled(value)
                   : null,
-              activeThumbColor: AppTheme.violet,
-              activeTrackColor: AppTheme.violet.withValues(alpha: 0.3),
-              inactiveThumbColor: AppTheme.textDisabled,
-              inactiveTrackColor: AppTheme.surfaceVariant,
+              activeThumbColor: AppTheme.guardianIndigo,
+              activeTrackColor:
+                  AppTheme.lavenderMid.withValues(alpha: 0.6),
+              inactiveThumbColor: AppTheme.textFaint,
+              inactiveTrackColor: AppTheme.appBackgroundMuted,
             ),
           ],
         );
@@ -337,16 +352,23 @@ class _ActionButtons extends ConsumerWidget {
       if (item.isPending) {
         return const SizedBox.shrink();
       }
-      return FilledButton.icon(
-        onPressed: onGrant,
-        icon: const Icon(Icons.vibration, size: 18),
-        label: const Text('Enable'),
-        style: FilledButton.styleFrom(
-          backgroundColor: AppTheme.violet,
-          foregroundColor: AppTheme.textOnViolet,
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+      return SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: onGrant,
+          icon: const Icon(Icons.vibration, size: 18),
+          label: const Text('Enable'),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppTheme.guardianIndigo,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(26),
+            ),
+            textStyle: GoogleFonts.inter(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       );
@@ -356,18 +378,19 @@ class _ActionButtons extends ConsumerWidget {
     if (item.isGranted) {
       return Row(
         children: [
-          Icon(
+          const Icon(
             Icons.check_circle_rounded,
-            color: AppTheme.violet,
+            color: AppTheme.successGreenDark,
             size: 20,
           ),
           const SizedBox(width: 8),
           Text(
             'Granted',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.violet,
-                  fontWeight: FontWeight.w600,
-                ),
+            style: GoogleFonts.inter(
+              fontSize: 15,
+              color: AppTheme.successGreenDark,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       );
@@ -385,11 +408,15 @@ class _ActionButtons extends ConsumerWidget {
             icon: const Icon(Icons.check_rounded, size: 18),
             label: const Text('Grant'),
             style: FilledButton.styleFrom(
-              backgroundColor: AppTheme.violet,
-              foregroundColor: AppTheme.textOnViolet,
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              backgroundColor: AppTheme.guardianIndigo,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(26),
+              ),
+              textStyle: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -400,11 +427,17 @@ class _ActionButtons extends ConsumerWidget {
           icon: const Icon(Icons.settings_rounded, size: 18),
           label: const Text('Settings'),
           style: OutlinedButton.styleFrom(
-            foregroundColor: AppTheme.textSecondary,
-            side: BorderSide(color: AppTheme.glowDivider),
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            foregroundColor: AppTheme.guardianIndigo,
+            side: const BorderSide(color: AppTheme.borderLight),
+            backgroundColor: AppTheme.surfaceWhite,
+            padding:
+                const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(26),
+            ),
+            textStyle: GoogleFonts.inter(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
@@ -425,27 +458,32 @@ class _ContinueButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       child: SizedBox(
         width: double.infinity,
         child: FilledButton.icon(
           onPressed: enabled ? onPressed : null,
           icon: const Icon(Icons.arrow_forward_rounded, size: 20),
           label: Text(
-            enabled ? 'Continue to GuardianHer' : 'Grant required permissions first',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+            enabled
+                ? 'Continue to GuardianHer'
+                : 'Grant required permissions first',
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           style: FilledButton.styleFrom(
-            backgroundColor: enabled ? AppTheme.violet : AppTheme.surfaceVariant,
-            foregroundColor: enabled ? AppTheme.textOnViolet : AppTheme.textDisabled,
+            backgroundColor:
+                enabled ? AppTheme.guardianIndigo : AppTheme.lavenderSoft,
+            foregroundColor:
+                enabled ? Colors.white : AppTheme.textFaint,
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(27),
             ),
-            disabledBackgroundColor: AppTheme.surfaceVariant,
-            disabledForegroundColor: AppTheme.textDisabled,
+            disabledBackgroundColor: AppTheme.lavenderSoft,
+            disabledForegroundColor: AppTheme.textFaint,
           ),
         ),
       ),

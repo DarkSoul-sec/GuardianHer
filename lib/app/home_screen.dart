@@ -268,7 +268,7 @@ class _SafetyCard extends ConsumerWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Quick actions (Share = existing flow; Fake Call + Record = deferred/Soon)
+// Quick actions (all wired: location flow, Fake Call, Voice Recording)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _QuickActionsRow extends StatelessWidget {
@@ -286,19 +286,19 @@ class _QuickActionsRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        const Expanded(
+        Expanded(
           child: GhQuickAction(
             icon: Icons.phone_outlined,
-            label: 'Fake Call\nSoon',
-            enabled: false,
+            label: 'Fake Call\nSimulate a call',
+            onTap: () => context.push(AppRoutes.fakeCall),
           ),
         ),
         const SizedBox(width: 12),
-        const Expanded(
+        Expanded(
           child: GhQuickAction(
             icon: Icons.mic_outlined,
-            label: 'Record Audio\nSoon',
-            enabled: false,
+            label: 'Record Audio\nRecord a note',
+            onTap: () => context.push(AppRoutes.voiceRecording),
           ),
         ),
       ],

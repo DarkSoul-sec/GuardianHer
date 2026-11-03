@@ -17,6 +17,15 @@ import '../../../features/sos/application/sos_providers.dart';
 import '../../../features/sos/application/sos_state.dart';
 import '../../../features/sos/domain/sos_event.dart';
 
+
+/// Release-safe logging: diagnostic output only, never in production builds.
+/// Call sites log metadata (counts, states, durations) — never phone numbers,
+/// message bodies, coordinates, names, or file contents.
+void _log(String message) {
+  if (kDebugMode) debugPrint(message);
+}
+
+
 // ─────────────────────────────────────────────────────────────────────────────
 // State model
 // ─────────────────────────────────────────────────────────────────────────────
@@ -168,6 +177,11 @@ class EmergencyOrchestratorState {
 
 /// Central coordinator for the emergency SOS workflow.
 ///
+/// CORE SAFETY FUNCTION: automatic SMS on a validly armed SOS is the app's
+/// primary purpose. SEND_SMS exists solely for this orchestrator's dispatch
+/// to the user's own selected emergency contacts. Never replace with a
+/// manual composer and never gate behind extra confirmation.
+///
 /// Watches [sosControllerProvider] and orchestrates:
 /// 1. GPS acquisition (non-blocking, ~45 s timeout to match location engine tiers)
 /// 2. Battery collection
@@ -207,7 +221,7 @@ class EmergencyOrchestrator extends Notifier<EmergencyOrchestratorState> {
 
   /// Reacts to SOS state transitions.
   void _onSosStateChanged(SosState? previous, SosState next) {
-    debugPrint('[EmergencySMS] SOS state changed: ${previous?.runtimeType} → ${next.runtimeType}, _processing=$_processing');
+    _log('[EmergencySMS] SOS state changed: ${previous?.runtimeType} → ${next.runtimeType}, _processing=$_processing');
     switch (next) {
       case SosActive():
         if (previous is! SosActive && !_processing) {
@@ -230,7 +244,7 @@ class EmergencyOrchestrator extends Notifier<EmergencyOrchestratorState> {
     if (_processing) return;
     _processing = true;
 
-    debugPrint('[EmergencySMS] Starting emergency workflow for event ${event.id.value}');
+    _log('[EmergencySMS] Starting emergency workflow for event ${event.id.value}');
 
     try {
       // 1. Create incident state immediately.
@@ -242,13 +256,13 @@ class EmergencyOrchestrator extends Notifier<EmergencyOrchestratorState> {
       );
 
       // 2. Collect battery + start GPS concurrently.
-      debugPrint('[EmergencySMS] Collecting battery + starting GPS...');
+      _log('[EmergencySMS] Collecting battery + starting GPS...');
       final locationCtrl = ref.read(locationControllerProvider.notifier);
       final gpsFuture = _acquireLocationWithTimeout(locationCtrl);
       final batteryFuture = _getBattery();
 
       final battery = await batteryFuture;
-      debugPrint('[EmergencySMS] Battery=$battery%');
+      _log('[EmergencySMS] Battery=$battery%');
       state = state.copyWith(batteryPercentage: () => battery);
 
       // 3. Wait for GPS (with timeout).
@@ -257,13 +271,13 @@ class EmergencyOrchestrator extends Notifier<EmergencyOrchestratorState> {
       final locationMessage = locationResult.message;
       final needsLocationSettings = locationResult.needsLocationSettings;
 
-      debugPrint('[EmergencySMS] GPS result: url=$locationUrl, msg=$locationMessage, needsSettings=$needsLocationSettings');
+      _log('[EmergencySMS] GPS result: url=$locationUrl, msg=$locationMessage, needsSettings=$needsLocationSettings');
 
       // If location services are disabled, open system settings and retry once.
       String? finalLocationUrl;
       String? finalLocationMessage;
       if (needsLocationSettings) {
-        debugPrint('[EmergencySMS] GPS: opening location settings for user to enable...');
+        _log('[EmergencySMS] GPS: opening location settings for user to enable...');
         state = state.copyWith(
           locationStatusMessage: () => 'Opening location settings...',
         );
@@ -271,11 +285,11 @@ class EmergencyOrchestrator extends Notifier<EmergencyOrchestratorState> {
         if (opened) {
           // Wait a moment for user to toggle, then retry capture.
           await Future<void>.delayed(const Duration(seconds: 2));
-          debugPrint('[EmergencySMS] GPS: retrying capture after location settings...');
+          _log('[EmergencySMS] GPS: retrying capture after location settings...');
           await locationCtrl.captureLocation();
           await Future<void>.delayed(const Duration(milliseconds: 500));
           final retryState = ref.read(locationControllerProvider);
-          debugPrint('[EmergencySMS] GPS retry: status=${retryState.status}, point=${retryState.point != null}');
+          _log('[EmergencySMS] GPS retry: status=${retryState.status}, point=${retryState.point != null}');
           if (retryState.status == LocationStatus.captured && retryState.point != null) {
             final point = retryState.point!;
             finalLocationUrl = _buildLocationUrl(point);
@@ -307,12 +321,12 @@ class EmergencyOrchestrator extends Notifier<EmergencyOrchestratorState> {
 
       // Bail out if the emergency was cancelled while GPS was being acquired.
       if (state.phase != EmergencyPhase.active) {
-        debugPrint('[EmergencySMS] Phase changed during GPS — aborting');
+        _log('[EmergencySMS] Phase changed during GPS — aborting');
         return;
       }
 
       // 4. Load contacts and build delivery list.
-      debugPrint('[EmergencySMS] Loading contacts...');
+      _log('[EmergencySMS] Loading contacts...');
       final contactsResult = await _contacts.loadContacts();
       final allContacts = contactsResult.fold(
         (list) => list,
@@ -321,14 +335,14 @@ class EmergencyOrchestrator extends Notifier<EmergencyOrchestratorState> {
       
       // Only include emergency contacts
       final contacts = allContacts.where((c) => c.isEmergencyContact).toList();
-      debugPrint('[EmergencySMS] Emergency contacts loaded: ${contacts.length} (of ${allContacts.length} total)');
+      _log('[EmergencySMS] Emergency contacts loaded: ${contacts.length} (of ${allContacts.length} total)');
 
       if (contacts.isEmpty) {
         state = state.copyWith(
           errorMessage: () => 'No emergency contacts configured. SMS not sent.',
           phase: EmergencyPhase.active,
         );
-        debugPrint('[EmergencySMS] No emergency contacts — aborting');
+        _log('[EmergencySMS] No emergency contacts — aborting');
         _processing = false;
         return;
       }
@@ -347,10 +361,10 @@ class EmergencyOrchestrator extends Notifier<EmergencyOrchestratorState> {
       // 5. Verify SEND_SMS permission (must be granted during onboarding).
       //    Do NOT request at SOS time — the Activity may not be in foreground
       //    (e.g., shake SOS, tile SOS, widget SOS), so the dialog won't show.
-      debugPrint('[EmergencySMS] Checking SMS permission...');
+      _log('[EmergencySMS] Checking SMS permission...');
       final hasPermission = await _bridge.checkSmsPermission();
       if (!hasPermission) {
-        debugPrint('[EmergencySMS] SEND_SMS not granted — automatic SMS unavailable');
+        _log('[EmergencySMS] SEND_SMS not granted — automatic SMS unavailable');
         state = state.copyWith(
           errorMessage: () => 'SMS permission not granted. Enable it in Permissions Setup to send automatic emergency messages.',
         );
@@ -360,7 +374,7 @@ class EmergencyOrchestrator extends Notifier<EmergencyOrchestratorState> {
 
       // 6. Build SMS body and delegate to native foreground service.
       final smsBody = _buildSmsBody(locationUrl, battery);
-      debugPrint('[EmergencySMS] Delegating SMS to native service (${contacts.length} guardians)...');
+      _log('[EmergencySMS] Delegating SMS to native service (${contacts.length} guardians)...');
 
       // Subscribe to native status/completion streams.
       _statusSub?.cancel();
@@ -380,14 +394,14 @@ class EmergencyOrchestrator extends Notifier<EmergencyOrchestratorState> {
         batteryPercentage: battery,
       );
 
-      debugPrint('[EmergencySMS] Native service started — waiting for results');
+      _log('[EmergencySMS] Native service started — waiting for results');
 
       // Safety timeout: if the native service dies without notifying us
       // (e.g., OS kills it), force-complete after 4 minutes.
       _safetyTimeout?.cancel();
       _safetyTimeout = Timer(const Duration(minutes: 4), () {
         if (_processing && state.phase == EmergencyPhase.active) {
-          debugPrint('[EmergencySMS] Safety timeout — force-completing');
+          _log('[EmergencySMS] Safety timeout — force-completing');
           _processing = false;
           if (state.locationUrl == null) {
             _scheduleGpsRetry();
@@ -395,8 +409,8 @@ class EmergencyOrchestrator extends Notifier<EmergencyOrchestratorState> {
         }
       });
     } catch (e, st) {
-      debugPrint('[EmergencySMS] UNHANDLED ERROR: $e');
-      debugPrint('[EmergencySMS] Stack trace: $st');
+      _log('[EmergencySMS] UNHANDLED ERROR: $e');
+      _log('[EmergencySMS] Stack trace: $st');
       _processing = false;
       state = state.copyWith(
         errorMessage: () => 'Emergency workflow error: $e',
@@ -408,7 +422,7 @@ class EmergencyOrchestrator extends Notifier<EmergencyOrchestratorState> {
   void _onNativeStatusUpdate(EmergencySmsStatusUpdate update) {
     if (state.phase != EmergencyPhase.active) return;
 
-    debugPrint('[EmergencySMS] Native status: ${update.guardianId} → ${update.status} (error: ${update.error})');
+    _log('[EmergencySMS] Native status: ${update.guardianId} → ${update.status} (error: ${update.error})');
 
     // System-level errors (permission denied, no SIM).
     if (update.guardianId == '_system') {
@@ -430,13 +444,13 @@ class EmergencyOrchestrator extends Notifier<EmergencyOrchestratorState> {
 
   /// Handles the completion event from the native service.
   void _onNativeComplete(EmergencySmsCompleteEvent event) {
-    debugPrint('[EmergencySMS] Native complete: sent=${event.totalSent} failed=${event.totalFailed}');
+    _log('[EmergencySMS] Native complete: sent=${event.totalSent} failed=${event.totalFailed}');
     _processing = false;
     _safetyTimeout?.cancel();
 
     // Schedule GPS retry if location was unavailable.
     if (state.locationUrl == null && state.phase == EmergencyPhase.active) {
-      debugPrint('[EmergencySMS] Scheduling GPS retry...');
+      _log('[EmergencySMS] Scheduling GPS retry...');
       _scheduleGpsRetry();
     }
   }
@@ -476,14 +490,14 @@ class EmergencyOrchestrator extends Notifier<EmergencyOrchestratorState> {
     });
 
     try {
-      debugPrint('[EmergencySMS] GPS: calling captureLocation()...');
+      _log('[EmergencySMS] GPS: calling captureLocation()...');
       await locationCtrl.captureLocation();
 
       // Give the location controller a moment to resolve.
       await Future<void>.delayed(const Duration(milliseconds: 500));
       final locState = ref.read(locationControllerProvider);
 
-      debugPrint('[EmergencySMS] GPS: status=${locState.status}, point=${locState.point != null}');
+      _log('[EmergencySMS] GPS: status=${locState.status}, point=${locState.point != null}');
 
       if (!completer.isCompleted) {
         if (locState.status == LocationStatus.captured && locState.point != null) {
@@ -497,7 +511,7 @@ class EmergencyOrchestrator extends Notifier<EmergencyOrchestratorState> {
           );
         } else if (locState.status == LocationStatus.servicesDisabled && locState.openLocationSettings) {
           // Location services OFF — request user to enable via system dialog.
-          debugPrint('[EmergencySMS] GPS: location services disabled, opening system settings...');
+          _log('[EmergencySMS] GPS: location services disabled, opening system settings...');
           _gpsTimeoutTimer?.cancel();
           completer.complete(
             _LocationResult(
@@ -575,7 +589,7 @@ class EmergencyOrchestrator extends Notifier<EmergencyOrchestratorState> {
 
           // Send location-update SMS via the native service.
           final body = _buildLocationUpdateBody(url, state.batteryPercentage);
-          debugPrint('[EmergencySMS] Sending location update via native service');
+          _log('[EmergencySMS] Sending location update via native service');
           await _bridge.startEmergency(
             sosEventId: state.incidentId ?? '',
             guardians: _contactsCache.map((c) => EmergencyGuardianData(

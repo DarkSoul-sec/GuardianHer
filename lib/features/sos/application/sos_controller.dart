@@ -8,6 +8,15 @@ import 'sos_providers.dart';
 import 'sos_state.dart';
 import 'sos_timer.dart';
 
+
+/// Release-safe logging: diagnostic output only, never in production builds.
+/// Call sites log metadata (counts, states, durations) — never phone numbers,
+/// message bodies, coordinates, names, or file contents.
+void _log(String message) {
+  if (kDebugMode) debugPrint(message);
+}
+
+
 /// Drives the SOS session lifecycle on top of the pure [SosStateMachine].
 ///
 /// The controller owns the current [SosEvent], keeps the countdown timer in
@@ -49,7 +58,7 @@ class SosController extends Notifier<SosState> {
         _event = value;
         _beginCountdown(value);
       case Err(:final failure):
-        debugPrint('[SOS] startSos rejected: $failure');
+        _log('[SOS] startSos rejected: $failure');
     }
   }
 
@@ -70,7 +79,7 @@ class SosController extends Notifier<SosState> {
           onComplete: () => _finish(),
         );
       case Err(:final failure):
-        debugPrint('[SOS] cancelSos rejected: $failure');
+        _log('[SOS] cancelSos rejected: $failure');
     }
   }
 
@@ -86,7 +95,7 @@ class SosController extends Notifier<SosState> {
         _event = value;
         state = SosCompleted(event: value);
       case Err(:final failure):
-        debugPrint('[SOS] completeSos rejected: $failure');
+        _log('[SOS] completeSos rejected: $failure');
     }
   }
 
@@ -102,7 +111,7 @@ class SosController extends Notifier<SosState> {
         _event = value;
         state = const SosIdle();
       case Err(:final failure):
-        debugPrint('[SOS] resetSos rejected: $failure');
+        _log('[SOS] resetSos rejected: $failure');
     }
   }
 
@@ -133,7 +142,7 @@ class SosController extends Notifier<SosState> {
         _event = value;
         state = SosActive(event: value);
       case Err(:final failure):
-        debugPrint('[SOS] activate rejected: $failure');
+        _log('[SOS] activate rejected: $failure');
     }
   }
 
@@ -148,7 +157,7 @@ class SosController extends Notifier<SosState> {
         _event = value;
         state = SosCompleted(event: value);
       case Err(:final failure):
-        debugPrint('[SOS] finish rejected: $failure');
+        _log('[SOS] finish rejected: $failure');
     }
   }
 }

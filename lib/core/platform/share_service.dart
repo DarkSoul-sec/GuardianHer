@@ -9,4 +9,9 @@ import '../result/result.dart';
 abstract interface class ShareService {
   /// Opens the system share sheet with [text] pre-filled.
   Future<Result<void>> shareText(String text);
+
+  /// Opens the system share sheet with the local file at [filePath].
+  ///
+  /// The user chooses the destination; nothing is sent automatically.
+  Future<Result<void>> shareFile(String filePath);
 }

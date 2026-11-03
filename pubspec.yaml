@@ -2,7 +2,7 @@ name: guardianher
 description: "GuardianHer - a personal safety application for women's safety."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 2.0.0+2
 
 environment:
   sdk: ^3.13.0
@@ -41,6 +41,12 @@ dependencies:
   package_info_plus: ^10.2.1
   flutter_local_notifications: ^22.3.0
   vibration: ^3.2.0
+  # Local voice-note capture (AAC/M4A) — no network, no cloud.
+  record: ^7.1.1
+  # Local audio playback for saved voice notes.
+  just_audio: ^0.10.6
+  # App-private storage location for voice recordings.
+  path_provider: ^2.1.4
   google_fonts: ^6.2.1
   # Android home-screen widget glue: renders a launcher widget whose tap opens
   # the app and deep-links to the SOS flow. No background location/services.
@@ -65,3 +71,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/brand/logo.png
+    - assets/brand/creator.jpg

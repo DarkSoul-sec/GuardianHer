@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:guardianher/app/router/app_router.dart';
 import 'package:guardianher/core/routing/route_guards.dart';
-import 'package:guardianher/shared/widgets/premium_components.dart';
 import 'package:guardianher/app/theme/app_theme.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -29,16 +29,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     if (!mounted) return;
 
     if (needsOnboarding) {
-      context.go('/onboarding/permissions');
+      context.go(AppRoutes.onboardingPermissions);
     } else {
-      context.go('/home');
+      context.go(AppRoutes.home);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.navyBase,
+      backgroundColor: AppTheme.appBackground,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -50,13 +50,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
             ),
             const SizedBox(height: 24),
             const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.violet),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                AppTheme.guardianIndigo,
+              ),
             ),
             const SizedBox(height: 16),
             Text(
               'Loading...',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.textSecondary,
+                    color: AppTheme.textBody,
                   ),
             ),
           ],

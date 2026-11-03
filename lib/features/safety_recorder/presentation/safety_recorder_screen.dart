@@ -22,7 +22,7 @@ class SafetyRecorderScreen extends ConsumerWidget {
     final currentIncident = recorderState.currentIncident;
 
     return Scaffold(
-      backgroundColor: AppTheme.navyBase,
+      backgroundColor: AppTheme.appBackground,
       appBar: AppBar(
         title: const Text('Safety Incidents'),
         leading: IconButton(
@@ -46,23 +46,23 @@ class SafetyRecorderScreen extends ConsumerWidget {
             height: 80,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppTheme.violet.withValues(alpha: 0.15),
+              color: AppTheme.guardianIndigo.withValues(alpha: 0.15),
               border: Border.all(
-                color: AppTheme.violet.withValues(alpha: 0.3),
+                color: AppTheme.guardianIndigo.withValues(alpha: 0.3),
                 width: 1,
               ),
             ),
             child: const Icon(
               Icons.shield_outlined,
               size: 40,
-              color: AppTheme.violetLight,
+              color: AppTheme.guardianIndigo,
             ),
           ),
           const SizedBox(height: 24),
           Text(
             'No Safety Incidents',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: AppTheme.textPrimary,
+              color: AppTheme.guardianIndigo,
             ),
           ),
           const SizedBox(height: 8),
@@ -70,7 +70,7 @@ class SafetyRecorderScreen extends ConsumerWidget {
             'Incidents are recorded automatically during\nSOS activations and safety sessions.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppTheme.textSecondary,
+              color: AppTheme.textBody,
             ),
           ),
         ],
@@ -170,14 +170,14 @@ class _IncidentCard extends StatelessWidget {
                     Text(
                       _formatDate(incident.createdAt),
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppTheme.textPrimary,
+                        color: AppTheme.guardianIndigo,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${incident.events.length} event${incident.events.length == 1 ? '' : 's'}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.textSecondary,
+                        color: AppTheme.textBody,
                       ),
                     ),
                     if (incident.vehicleType != null) ...[
@@ -185,7 +185,7 @@ class _IncidentCard extends StatelessWidget {
                       Text(
                         'Vehicle: ${incident.vehicleType!.label}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.textLavender,
+                          color: AppTheme.textBody,
                         ),
                       ),
                     ],
@@ -201,7 +201,7 @@ class _IncidentCard extends StatelessWidget {
   }
 
   Widget _buildStatusIcon() {
-    final color = isActive ? AppTheme.sosRed : AppTheme.successGreen;
+    final color = isActive ? AppTheme.sosCoral : AppTheme.successGreen;
     final icon = isActive ? Icons.circle : Icons.check_circle;
 
     return Container(
@@ -224,13 +224,13 @@ class _IncidentCard extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: AppTheme.sosRed.withValues(alpha: 0.15),
+          color: AppTheme.sosCoral.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(8),
         ),
         child: const Text(
           'Recording',
           style: TextStyle(
-            color: AppTheme.sosRed,
+            color: AppTheme.sosCoral,
             fontSize: 11,
             fontWeight: FontWeight.w600,
           ),

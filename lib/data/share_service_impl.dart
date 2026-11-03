@@ -27,4 +27,16 @@ class SharePlusShareService implements ShareService {
       return const Err(ShareUnavailableFailure());
     }
   }
+
+  @override
+  Future<Result<void>> shareFile(String filePath) async {
+    try {
+      await SharePlus.instance.share(
+        ShareParams(files: [XFile(filePath)], title: 'GuardianHer'),
+      );
+      return const Ok(null);
+    } catch (_) {
+      return const Err(ShareUnavailableFailure());
+    }
+  }
 }

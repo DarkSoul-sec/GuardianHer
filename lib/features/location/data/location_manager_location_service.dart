@@ -9,13 +9,17 @@ import '../../../core/result/result.dart';
 import '../domain/location_failures.dart';
 import '../domain/location_point.dart';
 
+
 /// Diagnostic log prefix so `adb logcat` can filter location flow events.
 ///
 /// PRIVACY: log lines carry only provider names, permission states, status
-/// codes and durations — never coordinates, contact data or URLs.
+/// codes and durations — never coordinates, contact data or URLs. Output is
+/// debug-only and never emitted in release builds.
 const String locationDiagnosticsTag = 'LocationService';
 
-void _log(String message) => debugPrint('[$locationDiagnosticsTag] $message');
+void _log(String message) {
+  if (kDebugMode) debugPrint('[$locationDiagnosticsTag] $message');
+}
 
 /// Permission states as reported by the native `guardianher/location_engine`.
 enum EnginePermission { granted, denied, permanentlyDenied }

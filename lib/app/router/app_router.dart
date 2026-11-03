@@ -5,6 +5,9 @@ import '../../core/routing/route_guards.dart';
 import '../../core/providers.dart';
 import '../../features/check_in/presentation/check_in_screen.dart';
 import '../../features/check_in/presentation/check_in_settings_screen.dart';
+import '../../features/fake_call/presentation/fake_call_screen.dart';
+import '../../features/voice_recording/presentation/recording_detail_screen.dart';
+import '../../features/voice_recording/presentation/voice_recording_screen.dart';
 import '../../features/contacts/presentation/contact_form_screen.dart';
 import '../../features/contacts/presentation/contacts_screen.dart';
 import '../../features/emergency_history/presentation/emergency_history_screen.dart';
@@ -15,6 +18,8 @@ import '../../features/location/presentation/location_screen.dart';
 import '../../features/onboarding/presentation/screens/permission_onboarding_screen.dart';
 import '../../features/onboarding/presentation/screens/splash_screen.dart';
 import '../../features/permissions/presentation/permissions_screen.dart';
+import '../../features/profile/presentation/about_guardianher_screen.dart';
+import '../../features/profile/presentation/about_me_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/safety_recorder/domain/safety_incident.dart';
 import '../../features/safety_recorder/presentation/safety_incident_detail_screen.dart';
@@ -25,7 +30,6 @@ import '../../features/settings/presentation/device_admin_settings_screen.dart';
 import '../../features/shake/presentation/shake_sos_settings_screen.dart';
 import '../../features/sos/presentation/sos_screen.dart';
 import '../../shared/widgets/app_shell.dart';
-import '../../debug/sms_debug_screen.dart';
 import '../home_screen.dart';
 
 /// Central route path registry.
@@ -35,6 +39,8 @@ abstract final class AppRoutes {
   static const splash = '/splash';
   static const home = '/';
   static const profile = '/profile';
+  static const aboutMe = '/profile/about-me';
+  static const aboutGuardianHer = '/profile/about-guardianher';
   static const contacts = '/contacts';
   static const contactsAdd = '/contacts/add';
 
@@ -46,6 +52,9 @@ abstract final class AppRoutes {
   static const map = '/map';
   static const checkIn = '/check-in';
   static const checkInSettings = '/check-in/settings';
+  static const fakeCall = '/fake-call';
+  static const voiceRecording = '/voice-recording';
+  static const voiceRecordingDetail = '/voice-recording/detail';
   static const history = '/history';
   static const permissions = '/permissions';
   static const settings = '/settings';
@@ -130,6 +139,14 @@ final appRouterProvider = Provider<GoRouter>(
           builder: (context, state) => const ProfileScreen(),
         ),
         GoRoute(
+          path: AppRoutes.aboutMe,
+          builder: (context, state) => const AboutMeScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.aboutGuardianHer,
+          builder: (context, state) => const AboutGuardianHerScreen(),
+        ),
+        GoRoute(
           path: AppRoutes.contactsAdd,
           builder: (context, state) => const AddContactScreen(),
         ),
@@ -154,6 +171,21 @@ final appRouterProvider = Provider<GoRouter>(
         GoRoute(
           path: AppRoutes.checkInSettings,
           builder: (context, state) => const CheckInSettingsScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.fakeCall,
+          builder: (context, state) => const FakeCallScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.voiceRecording,
+          builder: (context, state) => const VoiceRecordingScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.voiceRecordingDetail,
+          builder: (context, state) {
+            final id = state.extra as String;
+            return RecordingDetailScreen(recordingId: id);
+          },
         ),
         GoRoute(
           path: AppRoutes.permissions,
@@ -185,11 +217,6 @@ final appRouterProvider = Provider<GoRouter>(
         GoRoute(
           path: AppRoutes.onboardingPermissions,
           builder: (context, state) => const PermissionOnboardingScreen(),
-        ),
-        // TEMPORARY: SMS debug test — removed after test passes.
-        GoRoute(
-          path: '/sms-debug',
-          builder: (context, state) => const SmsDebugScreen(),
         ),
       ],
     );

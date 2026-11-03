@@ -249,26 +249,16 @@ class _GhSosButtonState extends State<GhSosButton>
                           const Icon(
                             Icons.shield_outlined,
                             color: Colors.white,
-                            size: 44,
+                            size: 52,
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 6),
                           Text(
                             'SOS',
                             style: GoogleFonts.inter(
                               color: Colors.white,
-                              fontSize: 30,
+                              fontSize: 32,
                               fontWeight: FontWeight.w800,
-                              letterSpacing: 2,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'TAP 2 SEC FOR SOS',
-                            style: GoogleFonts.inter(
-                              color: Colors.white.withValues(alpha: 0.9),
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1,
+                              letterSpacing: 3,
                             ),
                           ),
                         ],
@@ -439,6 +429,8 @@ class GhContactCard extends StatelessWidget {
 // GH shield logo — lavender rounded square + shield/lock
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// GuardianHer brand mark: deep-indigo shield with a centered check on a
+/// soft lavender rounded square. Single symbol, no lock overlay.
 class GhLogo extends StatelessWidget {
   const GhLogo({super.key, this.size = 48});
 
@@ -450,24 +442,32 @@ class GhLogo extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: AppTheme.lavenderSoft,
-        borderRadius: BorderRadius.circular(size * 0.3),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppTheme.lavenderSoft,
+            AppTheme.lavenderMid.withValues(alpha: 0.7),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(size * 0.32),
+        border: Border.all(
+          color: AppTheme.lavenderDeep.withValues(alpha: 0.5),
+        ),
+        boxShadow: AppTheme.softShadow(opacity: 0.1),
       ),
       child: Stack(
         alignment: Alignment.center,
         children: [
           Icon(
-            Icons.shield_outlined,
-            size: size * 0.55,
+            Icons.shield_rounded,
+            size: size * 0.58,
             color: AppTheme.guardianIndigo,
           ),
-          Positioned(
-            bottom: size * 0.22,
-            child: Icon(
-              Icons.lock,
-              size: size * 0.2,
-              color: AppTheme.guardianIndigo,
-            ),
+          Icon(
+            Icons.check_rounded,
+            size: size * 0.26,
+            color: AppTheme.surfaceWhite,
           ),
         ],
       ),

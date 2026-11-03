@@ -6,6 +6,7 @@ import 'app/router/app_router.dart';
 import 'core/platform/local_notifications.dart';
 import 'features/check_in/application/check_in_background_entrypoint.dart';
 import 'features/check_in/data/flutter_local_notifications_check_in_scheduler.dart';
+import 'features/fake_call/data/fake_call_notifier_impl.dart';
 
 void main() {
   // Routes notification taps (SOS and check-in) to the right screen. The app
@@ -19,7 +20,9 @@ void main() {
     final route =
         payload == checkInNotificationPayload || payload == checkInExecutionPayload
             ? AppRoutes.checkIn
-            : AppRoutes.sos;
+            : payload == fakeCallNotificationPayload
+                ? '${AppRoutes.fakeCall}?incoming=true'
+                : AppRoutes.sos;
     for (var i = 0; i < 100 && publishedRouter == null; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 10));
     }

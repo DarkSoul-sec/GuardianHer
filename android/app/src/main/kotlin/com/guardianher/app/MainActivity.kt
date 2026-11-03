@@ -53,8 +53,9 @@ class MainActivity : FlutterActivity() {
         messenger = flutterEngine.dartExecutor.binaryMessenger,
     )
 
-    // TEMPORARY: minimal SMS diagnostic — prove SmsManager works on this device.
-    SmsDebugHandler(this, flutterEngine.dartExecutor.binaryMessenger).attach()
+    // Simulated incoming-call alert (Fake Call only): system ringtone loop +
+    // vibration, fully isolated from every SOS service.
+    FakeCallRingtoneHandler(this, flutterEngine.dartExecutor.binaryMessenger)
 
     // Controls the Shake SOS foreground service from Dart.
     MethodChannel(

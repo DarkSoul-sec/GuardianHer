@@ -897,9 +897,21 @@ class _SosCompletedView extends StatelessWidget {
             FilledButton(
               onPressed: onDismiss,
               style: FilledButton.styleFrom(
-                minimumSize: const Size(200, 48),
+                minimumSize: const Size(220, 54),
                 backgroundColor: AppTheme.guardianIndigo,
-                foregroundColor: AppTheme.guardianIndigo,
+                foregroundColor: AppTheme.surfaceWhite,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(27),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 14,
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
               ),
               child: const Text('OK'),
             ),
