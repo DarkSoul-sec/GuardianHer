@@ -76,7 +76,7 @@
             transition: background-color 0.2s;
         }
         nav a:hover {
-            background-color #312e81;
+            background-color: #312e81;
         }
         section {
             background-color: #111827;
@@ -219,10 +219,10 @@
             <h2>4. Emergency Features</h2>
             
             <h3>4.1 Emergency SMS</h3>
-            <p>When you activate SOS, the app can send SMS messages directly to your selected emergency contacts using your device's SMS functionality. SMS messages may include your location (if available) and emergency details. This is initiated only by you when activating SOS.</p>
+            <p>When you activate SOS, GuardianHer automatically sends emergency SMS messages from your device to your selected emergency contacts if the required SMS permission is granted. Messages may include your current or last known location, when available, and emergency details. SMS is transmitted through your mobile carrier; standard messaging charges may apply.</p>
             
             <h3>4.2 Location Sharing</h3>
-            <p>Location is captured on-demand during emergencies. You can share location via SMS, email (if contact has email), or the Android share sheet. Map links (Google Maps) may be included in shared messages for convenience.</p>
+            <p>Location is captured on demand for SOS, safety check-ins, or when you choose to share it. During SOS, an available location may be included in emergency SMS messages to your selected contacts. For other sharing, you choose whether to open an SMS or email composer, or use the Android share sheet. Map links may be included in messages.</p>
             
             <h3>4.3 Other Emergency Features</h3>
             <ul>
@@ -238,7 +238,7 @@
             <p>GuardianHer requests only the permissions necessary for its features:</p>
             <ul>
                 <li><strong>ACCESS_FINE_LOCATION / ACCESS_COARSE_LOCATION:</strong> For one-time location capture during emergencies or check-ins</li>
-                <li><strong>SEND_SMS:</strong> To send emergency SMS alerts directly to contacts (optional - falls back to SMS composer if not granted)</li>
+                <li><strong>SEND_SMS:</strong> Allows GuardianHer to send SOS emergency SMS messages to your selected contacts after you activate SOS. If permission is denied, automatic SOS SMS is unavailable; other user-initiated sharing options are separate.</li>
                 <li><strong>RECORD_AUDIO:</strong> Only for voice notes you explicitly record</li>
                 <li><strong>POST_NOTIFICATIONS:</strong> For SOS alerts and safety reminders</li>
                 <li><strong>VIBRATE:</strong> For emergency alerts</li>
@@ -265,13 +265,13 @@
 
         <section id="sharing">
             <h2>7. Data Sharing</h2>
-            <p><strong>GuardianHer does not transmit your personal data to our servers, analytics providers, advertisers, or third parties for tracking.</strong></p>
+            <p><strong>GuardianHer does not send your personal data to GuardianHer-operated servers or to analytics and advertising providers. Data leaves your device only through the sharing features you use.</strong></p>
             <p>The only data transmissions that occur are:</p>
             <ul>
-                <li><strong>Emergency SMS:</strong> Sent directly from your device to contacts you select via your carrier's SMS service</li>
+                <li><strong>Emergency SMS:</strong> When SOS is activated and SMS permission is granted, messages are sent from your device to your selected contacts through your carrier's SMS service</li>
                 <li><strong>Phone Calls:</strong> When you explicitly place a call to emergency services or contacts</li>
-                <li><strong>User-Initiated Sharing:</strong> When you use the Android share sheet to share location or files with apps you choose</li>
-                <li><strong>Map Links:</strong> When included in messages, they link to Google Maps (maps.google.com) which is opened by the recipient's app/browser - no data sent from GuardianHer servers</li>
+                <li><strong>User-Initiated Sharing:</strong> When you choose to share location or other content through an SMS or email composer, or the Android share sheet, the chosen recipient or app receives the content</li>
+                <li><strong>Map Links:</strong> Messages may contain a Google Maps link for a shared location. If a recipient opens it, Google may process the location and their request under Google's privacy policy</li>
             </ul>
         </section>
 
