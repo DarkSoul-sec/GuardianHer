@@ -13,7 +13,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
   const PrivacyPolicyScreen({super.key});
 
   /// Edit when the copy is legally reviewed.
-  static const String lastUpdated = 'September 2026';
+  static const String lastUpdated = 'November 2026';
 
   @override
   Widget build(BuildContext context) {
@@ -174,8 +174,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
               number: '12',
               title: 'Contact',
               body: 'Questions about this policy or your data can be sent to '
-                  'mytemp.peso258@slmails.com. Please include “GuardianHer '
-                  'Privacy” in the subject line so your message is routed '
+                  'guidemytechno@gmail.com. Please include "GuardianHer '
+                  'Privacy" in the subject line so your message is routed '
                   'correctly.',
             ),
           ],

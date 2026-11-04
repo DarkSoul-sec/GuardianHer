@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/router/app_router.dart';
 import '../../../core/platform/home_widget.dart';
@@ -83,9 +84,21 @@ class SettingsScreen extends ConsumerWidget {
           ),
           ListTile(
             leading: const Icon(Icons.privacy_tip_outlined),
-            title: const Text('Privacy policy'),
+            title: const Text('Privacy policy (in-app)'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push(AppRoutes.privacyPolicy),
+          ),
+          ListTile(
+            leading: const Icon(Icons.open_in_new),
+            title: const Text('Privacy Policy (online)'),
+            subtitle: const Text('View published privacy policy'),
+            trailing: const Icon(Icons.open_in_new),
+            onTap: () async {
+              final uri = Uri.parse('https://guardianher.github.io/privacy-policy/');
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            },
           ),
         ],
       ),
