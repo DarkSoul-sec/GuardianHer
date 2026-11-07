@@ -159,8 +159,8 @@
             <h1>GuardianHer Privacy Policy</h1>
             <div class="app-name">GuardianHer - Personal Safety Application</div>
             <div class="dates">
-                <div><strong>Effective Date:</strong> November 4, 2026</div>
-                <div><strong>Last Updated:</strong> November 4, 2026</div>
+                <div><strong>Effective Date:</strong> November 7, 2026</div>
+                <div><strong>Last Updated:</strong> November 7, 2026</div>
             </div>
         </header>
 
@@ -187,7 +187,7 @@
             <h2>1. Overview</h2>
             <p>GuardianHer is a personal safety application for Android devices designed to help you alert trusted people in emergency situations. The app is designed with privacy as a core principle - most data is stored locally on your device.</p>
             <p><strong>Application ID:</strong> com.GuardianHer.app<br>
-            <strong>Version:</strong> 2.0.0</p>
+            <strong>Version:</strong> 2.0.4 (versionCode 6)</p>
         </section>
 
         <section id="developer">
@@ -202,15 +202,15 @@
             
             <h3>3.1 Information You Provide</h3>
             <ul>
-                <li><strong>Trusted Contacts:</strong> Names and phone numbers of emergency contacts you manually add. Stored locally on your device.</li>
+                <li><strong>Trusted Contacts:</strong> Names, phone numbers, and optional email addresses of emergency contacts you manually add. Stored locally on your device.</li>
                 <li><strong>App Settings:</strong> Your preferences for safety features (Shake SOS, check-in reminders, etc.). Stored locally.</li>
-                <li><strong>Voice Recordings:</strong> Audio notes you explicitly record using the Voice Recordings feature. Stored locally as files on your device.</li>
-                <li><strong>Vehicle Information:</strong> Optional vehicle details you enter for journey tracking (registration, driver name, booking reference). Stored only in memory during the journey, never persisted long-term.</li>
+                <li><strong>Voice Recordings:</strong> Audio notes you explicitly record using the Voice Recordings feature. Recording starts only when you choose to start it while the screen is visible. Audio files and their details are stored locally on your device.</li>
+                <li><strong>Vehicle Information:</strong> Optional vehicle details you enter for a journey are held in memory. If recorded in a safety incident, the incident may retain the vehicle type and whether you provided a registration; it does not retain the registration, driver name, or booking reference.</li>
             </ul>
 
             <h3>3.2 Information Accessed Automatically</h3>
             <ul>
-                <li><strong>Location Data:</strong> Accessed only when you explicitly trigger location capture (activating SOS, confirming a safety check-in, or manually sharing location). Not collected in the background continuously. No background location access is requested.</li>
+                <li><strong>Location Data:</strong> Accessed for SOS, safety check-ins, or when you choose to share your location. GuardianHer does not request Android's background-location permission or collect location continuously in the background.</li>
                 <li><strong>Device Information:</strong> Basic device state for functionality (battery status for emergency messages, network connectivity state). Not collected for tracking or analytics.</li>
             </ul>
         </section>
@@ -219,15 +219,15 @@
             <h2>4. Emergency Features</h2>
             
             <h3>4.1 Emergency SMS</h3>
-            <p>When you activate SOS, GuardianHer automatically sends emergency SMS messages from your device to your selected emergency contacts if the required SMS permission is granted. Messages may include your current or last known location, when available, and emergency details. SMS is transmitted through your mobile carrier; standard messaging charges may apply.</p>
+            <p>When SOS is armed, GuardianHer automatically sends emergency SMS messages from your device to your selected emergency contacts if contacts are configured and SMS permission is granted. If a shake is detected while the app is closed, the detector first vibrates and shows a high-priority notification; you must tap that notification to open the app and arm SOS. No emergency SMS is dispatched before SOS is armed. Messages may include your current or last known location (a last known fix is labelled as such), and emergency details such as the time and battery level. SMS is transmitted through your mobile carrier; standard messaging charges may apply. If SMS permission is denied or no emergency contacts are configured, automatic SMS is unavailable. Other user-initiated sharing options remain available.</p>
             
             <h3>4.2 Location Sharing</h3>
-            <p>Location is captured on demand for SOS, safety check-ins, or when you choose to share it. During SOS, an available location may be included in emergency SMS messages to your selected contacts. For other sharing, you choose whether to open an SMS or email composer, or use the Android share sheet. Map links may be included in messages.</p>
+            <p>Location is captured on demand for SOS, safety check-ins, or when you choose to share it. During SOS, an available location may be included in emergency SMS messages to your selected contacts. For other sharing, you choose whether to open an SMS or email composer, a pre-filled WhatsApp chat, or Android's share sheet. WhatsApp messages are not sent until you choose Send in WhatsApp. Map links may be included in messages.</p>
             
             <h3>4.3 Other Emergency Features</h3>
             <ul>
-                <li><strong>Shake SOS:</strong> Optional feature that detects deliberate shakes to trigger SOS. Runs as a foreground service only when enabled by you.</li>
-                <li><strong>Quick Settings Tile & Widget:</strong> Launchers that open the SOS flow when tapped. No data collection.</li>
+                <li><strong>Shake SOS:</strong> Optional feature that detects deliberate shakes. With GuardianHer visible, a deliberate shake arms SOS. When the app is closed or not visible, detection vibrates the phone and shows a high-priority notification; SOS arms only after you tap the notification. SOS does not arm from a closed-app shake alone. Runs as a foreground service only when enabled by you.</li>
+                <li><strong>Quick Settings Tile & Home-Screen Widget:</strong> Tapping either opens GuardianHer and triggers the SOS workflow. They do not collect data independently; the normal SOS location and SMS behavior described above applies.</li>
                 <li><strong>Fake Call:</strong> Simulated feature with no real calls or microphone recording.</li>
                 <li><strong>Safety Check-Ins:</strong> Scheduled reminders that you manually confirm. Location captured only upon confirmation.</li>
             </ul>
@@ -238,13 +238,12 @@
             <p>GuardianHer requests only the permissions necessary for its features:</p>
             <ul>
                 <li><strong>ACCESS_FINE_LOCATION / ACCESS_COARSE_LOCATION:</strong> For one-time location capture during emergencies or check-ins</li>
-                <li><strong>SEND_SMS:</strong> Allows GuardianHer to send SOS emergency SMS messages to your selected contacts after you activate SOS. If permission is denied, automatic SOS SMS is unavailable; other user-initiated sharing options are separate.</li>
+                <li><strong>SEND_SMS:</strong> Allows GuardianHer to automatically send emergency SMS messages to your selected contacts after SOS is armed. If permission is denied, automatic SOS SMS is unavailable; other user-initiated sharing options are separate.</li>
                 <li><strong>RECORD_AUDIO:</strong> Only for voice notes you explicitly record</li>
                 <li><strong>POST_NOTIFICATIONS:</strong> For SOS alerts and safety reminders</li>
                 <li><strong>VIBRATE:</strong> For emergency alerts</li>
                 <li><strong>FOREGROUND_SERVICE variants:</strong> For Shake SOS detection and emergency services while app is in background/locked state</li>
                 <li><strong>WAKE_LOCK:</strong> To ensure emergency SMS is sent reliably</li>
-                <li><strong>SYSTEM_ALERT_WINDOW:</strong> Optional, only for Shake SOS to launch from locked screen</li>
                 <li><strong>RECEIVE_BOOT_COMPLETED:</strong> To restore user-enabled features after device reboot</li>
             </ul>
             <p>You can deny any permission and the related feature will be unavailable with a clear explanation. No permissions are requested at app startup.</p>
@@ -253,35 +252,36 @@
         <section id="storage">
             <h2>6. Data Storage and Security</h2>
             <ul>
-                <li><strong>Local Storage:</strong> Most data (contacts, settings, safety records) is stored locally on your device.</li>
+                <li><strong>Local Storage:</strong> Contacts, settings, voice recordings, and safety incident records are stored locally on your device.</li>
                 <li><strong>Secure Storage:</strong> Sensitive data like trusted contacts is stored using Android Keystore-backed secure storage (via flutter_secure_storage).</li>
-                <li><strong>Voice Recordings:</strong> Stored as audio files in the app's private documents directory, accessible only to the app.</li>
-                <li><strong>Safety Incidents:</strong> Emergency event logs are stored locally in app preferences for your review.</li>
-                <li><strong>No Cloud Sync:</strong> Data is not synced to cloud services.</li>
-                <li><strong>App Isolation:</strong> Other apps cannot access GuardianHer's private data.</li>
+                <li><strong>Voice Recordings:</strong> Audio files and their index are stored in the app's private documents directory. You can choose to share a recording through Android's share sheet.</li>
+                <li><strong>Safety Incidents:</strong> Completed incident records are stored in app preferences. Records contain event types, timestamps, opaque session identifiers, and limited metadata; they do not contain raw coordinates, contact details, message bodies, or actual vehicle registration numbers. The app retains up to 20 completed incidents, evicting the oldest when the limit is exceeded.</li>
+                <li><strong>No Account Sync:</strong> Contacts, settings, voice recordings, and safety incident records are not synchronized to a GuardianHer account.</li>
+                <li><strong>App Isolation:</strong> App data is stored in Android's app-private storage and is protected by Android's application sandbox under normal device conditions.</li>
             </ul>
             <p>While we use platform security features, no method of electronic storage is 100% secure. We implement reasonable security measures using Android's built-in security mechanisms.</p>
         </section>
 
         <section id="sharing">
             <h2>7. Data Sharing</h2>
-            <p><strong>GuardianHer does not send your personal data to GuardianHer-operated servers or to analytics and advertising providers. Data leaves your device only through the sharing features you use.</strong></p>
-            <p>The only data transmissions that occur are:</p>
+            <p>Some features transmit information from your device as described below. GuardianHer does not automatically upload your contacts, settings, voice recordings, or locally stored incident records.</p>
             <ul>
-                <li><strong>Emergency SMS:</strong> When SOS is activated and SMS permission is granted, messages are sent from your device to your selected contacts through your carrier's SMS service</li>
-                <li><strong>Phone Calls:</strong> When you explicitly place a call to emergency services or contacts</li>
-                <li><strong>User-Initiated Sharing:</strong> When you choose to share location or other content through an SMS or email composer, or the Android share sheet, the chosen recipient or app receives the content</li>
-                <li><strong>Map Links:</strong> Messages may contain a Google Maps link for a shared location. If a recipient opens it, Google may process the location and their request under Google's privacy policy</li>
+                <li><strong>Emergency SMS:</strong> After SOS is armed, and if SMS permission is granted and emergency contacts are configured, emergency messages are sent from your device to those contacts through your mobile carrier. Messages may include location and emergency details described above.</li>
+                <li><strong>Phone Calls:</strong> When you choose to call emergency services or a contact, GuardianHer opens the phone dialer; your phone service handles the call.</li>
+                <li><strong>User-Initiated Sharing:</strong> If you choose to share a location, voice recording, or other content through SMS, email, WhatsApp, Android's share sheet, or clipboard, the selected app or recipient receives the content you share. A journey share message may include the vehicle type and registration number you provided. WhatsApp opens a pre-filled chat; you decide whether to send it. The app generates journey-link text and lets you share or copy it; this does not represent that a recipient-accessible journey service is available.</li>
+                <li><strong>Map Links:</strong> Messages may contain a Google Maps link for a shared location. If a recipient opens it, Google may process the location and their request under Google's privacy policy.</li>
             </ul>
         </section>
 
         <section id="third-party">
             <h2>8. Third-Party Services and SDKs</h2>
-            <p>GuardianHer uses the following third-party SDKs for functionality:</p>
+            <p>GuardianHer uses the following third-party software and system services for functionality:</p>
             <ul>
                 <li><strong>Flutter Framework & Dart packages:</strong> Various open-source packages for UI, state management, local storage, permissions, etc.</li>
+                <li><strong>Google Fonts:</strong> The app uses the google_fonts package for typography. It may request font files from Google Fonts at runtime, which involves communication with Google's infrastructure and is subject to Google's applicable privacy practices. The app's code does not establish exactly what information Google receives with these requests.</li>
                 <li><strong>Android System Services:</strong> Uses Android APIs for SMS, location, notifications, etc.</li>
-                <li><strong>Google Maps links:</strong> Messages may include maps.google.com links for location sharing - these open in the recipient's map app</li>
+                <li><strong>Communication Apps:</strong> When you choose to share or call, GuardianHer may open WhatsApp, phone, messaging, email, or other Android apps. Their handling of data is governed by their own privacy terms.</li>
+                <li><strong>Google Maps links:</strong> Messages may include maps.google.com links for location sharing. If a recipient opens a link, Google may process the location and request.</li>
             </ul>
             <p>No analytics, crash reporting, advertising, or tracking SDKs are integrated.</p>
         </section>
@@ -289,16 +289,19 @@
         <section id="retention">
             <h2>9. Data Retention and Deletion</h2>
             <ul>
-                <li><strong>Contacts & Settings:</strong> Retained until you delete them or clear all data</li>
-                <li><strong>Voice Recordings:</strong> Retained until you delete them individually or use "Delete all local data"</li>
-                <li><strong>Safety Incidents:</strong> Stored locally until cleared by you</li>
+                <li><strong>Contacts:</strong> Retained until you delete them individually from the Contacts screen.</li>
+                <li><strong>Voice Recordings:</strong> Retained until you delete them individually from the Voice Recordings screen.</li>
+                <li><strong>Safety Incidents:</strong> Up to 20 completed incidents are retained locally. You can delete a completed incident individually from its detail screen; active incidents cannot be deleted while recording.</li>
+                <li><strong>Settings:</strong> Preferences for safety features are stored locally and can be changed in Settings.</li>
                 <li><strong>In-Memory Data:</strong> Some data (like vehicle info during journeys) exists only in memory for the duration of the session</li>
             </ul>
             <p><strong>Deletion Methods:</strong></p>
             <ul>
-                <li>Delete individual contacts, voice recordings, or records from within the app</li>
-                <li>Use "Delete all local data" in Settings to wipe contacts, settings, safety incidents, and voice recordings from your device</li>
-                <li>Uninstall the app to remove all app data from your device</li>
+                <li>Delete contacts individually from the Contacts screen.</li>
+                <li>Delete voice recordings individually from the Voice Recordings screen.</li>
+                <li>Delete completed safety incidents individually from their detail screens.</li>
+                <li>Use <strong>Delete all local data</strong> in Settings to remove trusted contacts, settings, emergency history (safety incident records), and locally stored voice recordings from this device.</li>
+                <li>Deleting an item from the app does not delete copies already sent to contacts or shared apps.</li>
             </ul>
         </section>
 
@@ -307,9 +310,9 @@
             <ul>
                 <li><strong>Explicit Actions:</strong> All emergency features require explicit user action to trigger</li>
                 <li><strong>Permission Control:</strong> You can grant or deny permissions at any time in Android settings</li>
-                <li><strong>Feature Opt-In:</strong> Features like Shake SOS, device administrator, and check-in reminders are opt-in</li>
-                <li><strong>Data Control:</strong> You have full control over your contacts and can delete data at any time</li>
-                <li><strong>No Automatic Tracking:</strong> The app does not track your location or send alerts automatically without your action</li>
+                <li><strong>Feature Opt-In:</strong> Features like Shake SOS and check-in reminders are opt-in</li>
+                <li><strong>Data Control:</strong> You can delete contacts, voice recordings, and completed safety incidents individually from within the app.</li>
+                <li><strong>Location and SOS Control:</strong> GuardianHer does not continuously track location in the background. A user must initiate SOS; once SOS is armed, emergency SMS is sent automatically when the required contacts and permission are available.</li>
             </ul>
         </section>
 
